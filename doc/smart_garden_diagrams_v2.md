@@ -9,10 +9,10 @@
 
 | Sơ đồ | Đưa vào mục Final Report | Đổi so với bản cũ |
 |---|---|---|
-| 1. Kiến trúc tổng quan | 2.1 IoT Service Model | Thêm lớp validate, SQLite 4 bảng, kho ảnh, cảnh báo camera |
+| 1. Kiến trúc tổng quan | 2.1 IoT Service Model | Thêm lớp validate, SQLite 4 bảng, kho ảnh, cảnh báo camera, **watchdog serial + PING** |
 | 2. Cây quyết định 5 mức | 2.3 Service Implementation | **Sửa nặng** — mức 1 rẽ theo độ ẩm đất, mức 4 là ma trận fusion |
 | 3. Luồng xử lý dữ liệu | 2.2 Data Processing | Thêm `normalize_ai_result()`, SQLite thay cho file log |
-| 4. Sequence tưới khẩn cấp | 3.5 Testing and Improvements | **Sửa** — bounded pulse là hiện trạng, không phải đề xuất |
+| 4. Sequence tưới khẩn cấp | 3.5 Testing and Improvements | **Sửa** — bounded pulse là hiện trạng; thêm nhịp PING và **nhánh hỏng khi Pi chết** |
 | 5. Sơ đồ triển khai | 3.2 Network and Communication | Thêm systemd, udev, cổng cố định |
 | 6. Gantt WBS | 1.4 Schedule and Milestones | Thêm Phase 5 (26/07–05/08) |
 | 7. Sơ đồ chân cắm | 3.3 Hardware Implementation | **Mới** — dùng tạm nếu chưa kịp vẽ Fritzing |
@@ -33,7 +33,7 @@ flowchart TB
         SR["<b>serial_reader</b> (thread)<br/>Đọc JSON 2s/lần<br/>Tự kết nối lại"]
         AI["<b>ai_vision_worker</b> (thread)<br/>OpenCV chụp mỗi 15 phút<br/>Lưu ảnh có dấu thời gian"]
         VAL["<b>normalize_ai_result()</b><br/>Kiểm enum · ngưỡng conf ≥ 40<br/>· có cây trong khung ảnh?<br/><i>Reply hỏng bị loại tại đây</i>"]
-        DL["<b>decision_loop</b> (main thread)<br/>Cây ưu tiên 5 mức<br/>Chu kỳ 2 giây"]
+        DL["<b>decision_loop</b> (main thread)<br/>Cây ưu tiên 5 mức<br/>Chu kỳ 2 giây<br/>PING mỗi 10 giây"]
         API["<b>dashboard_worker</b> (thread)<br/>Flask REST · 12 endpoint<br/>:5000 bind 0.0.0.0"]
         DB[("SQLite (WAL)<br/>sensor_readings · ai_diagnosis<br/>commands · events")]
         PH[("photos/<br/>leaf_YYYYmmdd_HHMMSS.jpg<br/>giữ 50 file gần nhất")]
@@ -45,6 +45,7 @@ flowchart TB
         AUTO["<b>Logic AUTO cục bộ</b><br/>Theo ngưỡng trong firmware<br/><i>Chạy độc lập với Pi</i>"]
         ACT["Cơ cấu chấp hành<br/>Relay bơm tưới · Relay phun sương<br/><i>khoá liên động, active LOW</i>"]
         OLED["OLED SSD1306<br/>2 trang luân phiên 3s"]
+        WD["<b>checkSerialWatchdog()</b><br/>Quá 60s không nhận gì từ Pi<br/>→ nhả relay, quay về AUTO<br/><i>báo cờ wd_tripped</i>"]
     end
 
     CAM["📷 USB Camera"]
@@ -58,6 +59,8 @@ flowchart TB
     SR -->|"latest_sensor"| DL
     DL -->|"send_command (dedupe)"| SR
     SR <-->|"UART 115200<br/>JSON hai chiều"| SEN
+    SR -.->|"PING mỗi 10 giây<br/>bằng chứng Pi còn sống"| WD
+    WD -->|"huỷ mọi lệnh do Pi đặt"| AUTO
     SEN --> AUTO --> ACT
     SEN --> OLED
     DL -.->|"ghi 4 bảng"| DB
@@ -72,7 +75,14 @@ flowchart TB
     style EDGE fill:#EEEDFE,stroke:#534AB7
     style MCU fill:#E1F5EE,stroke:#0F6E56
     style VAL fill:#FFF4CE,stroke:#8A6D00
+    style WD fill:#FFF4CE,stroke:#8A6D00
 ```
+
+> Hai nút nền vàng là hai lớp chặn độc lập: `normalize_ai_result()` chặn kết quả AI
+> không đáng tin đi vào quyết định, `checkSerialWatchdog()` chặn cơ cấu chấp hành
+> kẹt ở trạng thái ép khi Pi chết. Vì `send_command()` lọc lệnh trùng, một quyết
+> định giữ nguyên lâu không sinh byte nào trên serial, nên `PING` là thứ duy nhất
+> phân biệt "quyết định đang ổn định" với "host đã chết".
 
 ---
 
@@ -204,7 +214,12 @@ sequenceDiagram
     ESP->>PUMP: đóng relay (active LOW)
     ESP-->>DL: {water:true, mode:"MANUAL", reason:"host cmd"}
 
-    Note over DL: Bounded pulse — hẹn giờ 60 giây<br/>(EMERGENCY_WATER_DURATION)
+    Note over DL,ESP: Bounded pulse — hẹn giờ 60 giây (EMERGENCY_WATER_DURATION).<br/>send_command lọc lệnh trùng nên WATER_ON không được phát lại.<br/>PING là byte duy nhất chạy trên serial trong lúc này.
+    loop mỗi 10 giây trong suốt thời gian giữ lệnh
+        DL->>ESP: PING
+        ESP->>ESP: g_lastSerialMs = millis()
+    end
+
     DL->>DL: hết 60s → hết hạn xung
     DL->>ESP: AUTO
     ESP->>PUMP: mở relay
@@ -212,6 +227,31 @@ sequenceDiagram
     DL->>DB: events: pulse_released
 
     Note over DL: Khoá cooldown 3600 giây —<br/>cùng triệu chứng không kích hoạt lại
+```
+
+Nhánh hỏng — Pi mất điện hoặc treo ngay sau khi phát `WATER_ON`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant DL as decision_loop (Pi)
+    participant ESP as ESP32
+    participant PUMP as Bơm tưới
+
+    DL->>ESP: WATER_ON
+    ESP->>PUMP: đóng relay
+    ESP->>ESP: g_manualFromSerial = true
+
+    Note over DL: Pi mất điện / crash / systemctl stop
+    DL--xESP: PING ngừng phát
+
+    Note over ESP: Đếm từ g_lastSerialMs
+    ESP->>ESP: millis() - g_lastSerialMs > 60000<br/>checkSerialWatchdog()
+    ESP->>PUMP: nhả relay
+    ESP->>ESP: manualMode = false · g_mistLocked = false<br/>g_watchdogTripped = true
+    ESP--)DL: {"event":"watchdog"} · wd_tripped = true
+
+    Note over ESP: Quay về logic AUTO cục bộ.<br/>Không có lớp này, bơm chạy đến khi hết nước.
 ```
 
 ---

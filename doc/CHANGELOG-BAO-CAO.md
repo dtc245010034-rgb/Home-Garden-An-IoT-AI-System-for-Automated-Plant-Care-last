@@ -15,7 +15,7 @@ template. Mỗi dòng dưới đây ghi rõ báo cáo nói gì, thực tế là 
 |---|---|---|---|---|
 | A1 | 2.2, 3.1 | Làm mịn quang trở: mới 0.7 / cũ 0.3 | `g_lightSmooth * 0.7 + rawLight * 0.3` → **cũ 0.7 / mới 0.3** | Đảo ngược trọng số. Bản báo cáo mô tả một bộ lọc phản ứng nhanh, code thì làm mịn mạnh |
 | A2 | 3.1, 3.4 | Trường `mode` nhận `AUTO`, `MANUAL` hoặc `LOCKED` | `manualMode ? "MANUAL" : "AUTO"` — **không tồn tại `LOCKED`** | `LOCK_IDLE` được truyền về dưới dạng `MANUAL` với hai relay đều nhả |
-| A3 | 2.4 | Firmware 355 dòng | `firmware/v2/v2.ino` = **432 dòng** | 355 là số dòng của **v1** — bảng đang mô tả bản cũ |
+| A3 | 2.4 | Firmware 355 dòng | `firmware/v2/v2.ino` = **433 dòng** | 355 là số dòng của **v1** — bảng đang mô tả bản cũ. File còn thiếu newline cuối nên `wc -l` báo 432; đã thêm để hai cách đếm khớp nhau |
 | A4 | 2.4 | Supervisor 1074 dòng | `main.py` = **1098 dòng** | Đếm trước khi thêm heartbeat và bộ lọc khung sự kiện |
 | A5 | 2.2 | "một trong **năm** giá trị cho phép" | `VALID_AI_STATES` có **4** giá trị | `khong_xac_dinh` là giá trị dự phòng khi bị loại, không phải giá trị được phép |
 | A6 | 2.2 | `normalize_ai_result()` thực hiện **4** kiểm tra | Hàm này thực hiện **3** | Kiểm tra "có cây trong khung" do prompt đảm nhiệm và `update_camera_health()` đếm, không nằm trong hàm chuẩn hoá |
