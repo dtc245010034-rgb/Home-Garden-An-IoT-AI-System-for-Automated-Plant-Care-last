@@ -21,6 +21,15 @@
   }
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; }
+
+  /* BẮT BUỘC phải có, và phải có !important.
+     Thuộc tính hidden của HTML chỉ hoạt động nhờ luật [hidden]{display:none}
+     trong stylesheet MẶC ĐỊNH của trình duyệt. Mọi khai báo display của tác giả
+     đều thắng stylesheet trình duyệt, nên .banner{display:flex},
+     .trend-grid{display:grid}, .photo-frame img{display:block} và
+     .trust-tag{display:inline-block} từng vô hiệu hoá hoàn toàn hidden —
+     4 băng cảnh báo hiện thường trực dù chưa có cảnh báo nào. */
+  [hidden]{ display:none !important; }
   body{
     background:radial-gradient(1200px 600px at 15% -10%, rgba(124,184,111,0.08), transparent 60%), var(--bg);
     color:var(--text);

@@ -62,7 +62,6 @@ LƯU TRỮ
 import os
 import re
 import sys
-import csv
 import json
 import time
 import glob
@@ -891,7 +890,7 @@ def api_status():
         lock, alert, streak = mist_locked, camera_alert, camera_blind_streak
         photo = last_photo_name
 
-    soil, is_dry, fresh = read_soil_state()
+    _, is_dry, fresh = read_soil_state()
     return jsonify({
         "sensor": sensor,
         "ai": ai,

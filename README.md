@@ -467,7 +467,8 @@ Nêu thẳng ra thay vì để giám khảo phát hiện:
 | 4 | Ngưỡng đất khô hard-code hai nơi | Sửa một chỗ mà quên chỗ kia gây tranh chấp | Xem cảnh báo ở [mục 3](#3-phần-cứng) |
 | 5 | Chưa có unit test | Phải kiểm thử bằng tay theo kịch bản | Cần test cho `normalize_ai_result()`, `pulse()`, ma trận `decide_fusion()` |
 | 6 | Sparkline bỏ qua điểm `NULL` | Nếu cảm biến hỏng giữa chừng, trục thời gian bị lệch nhẹ | Chỉ ảnh hưởng thẩm mỹ biểu đồ |
-| 7 | Cảm biến độ ẩm đất chưa hiệu chuẩn | `map(0..4095 → 100..0)` là ánh xạ tuyến tính thô | Hiệu chuẩn bằng đất khô hoàn toàn và đất ngâm nước |
+| 7 | Dashboard chưa có kiểm thử tự động | Lỗi hiển thị chỉ phát hiện được bằng mắt | Đã kiểm chứng thủ công bằng Chrome headless (ảnh trước/sau). Nếu có thời gian nên thêm snapshot test |
+| 8 | Cảm biến độ ẩm đất chưa hiệu chuẩn | `map(0..4095 → 100..0)` là ánh xạ tuyến tính thô | Hiệu chuẩn bằng đất khô hoàn toàn và đất ngâm nước |
 
 ---
 
@@ -479,6 +480,7 @@ Nêu thẳng ra thay vì để giám khảo phát hiện:
 |---|---|---|
 | `main.py` không gửi `PING` dù firmware v2.1 yêu cầu 10 giây/lần | **Nghiêm trọng:** `send_command()` lọc lệnh trùng nên `LOCK_IDLE` ban đêm chỉ được gửi **một lần**. Sau 60 giây watchdog nổ oan, ESP32 quay về `AUTO` và **tưới đêm** — đúng thứ Time Guard sinh ra để ngăn. Khoá thối rễ và override tay cũng bị vô hiệu như vậy | Gửi `PING` mỗi 10 giây trong `decision_loop` |
 | `serial_reader` nhận `{"event":"watchdog",...}` như gói cảm biến | `latest_sensor` bị ghi đè, dashboard mất hết số liệu, `read_soil_state()` trả `None` → fusion mất đầu vào độ ẩm đất | Bỏ qua dòng không có khoá `temp`, ghi thành sự kiện `esp32_event` |
+| Thuộc tính `hidden` **hoàn toàn vô tác dụng** trên 4 nhóm phần tử | **Cả 4 băng cảnh báo hiện thường trực ngay khi mở dashboard** dù chưa có cảnh báo nào — trong đó một băng đỏ chỉ có icon 🚨 không có chữ. Biểu đồ rỗng cũng hiện chồng lên dòng "Đang thu thập dữ liệu…", và khung ảnh hiện icon ảnh vỡ. Nguyên nhân: `hidden` chỉ hoạt động nhờ luật `[hidden]{display:none}` trong stylesheet **mặc định của trình duyệt**, mà mọi khai báo `display` của tác giả đều thắng stylesheet trình duyệt — `.banner{display:flex}`, `.trend-grid{display:grid}`, `.photo-frame img{display:block}`, `.trust-tag{display:inline-block}` đè hết lên nó | Thêm `[hidden]{ display:none !important; }` vào phần reset |
 | Thumbnail hiện giờ sai: `slice(13,15)` lệch 1 ký tự | `leaf_20260806_143012.jpg` hiện `_1:43` thay vì `14:30` | Sửa thành `slice(14,16)` / `slice(16,18)` |
 | Ghi chú AI nhét vào `innerHTML` chưa escape | Một dấu `<` do Gemini trả về làm hỏng cả danh sách nhật ký | Thêm hàm `esc()` cho mọi chuỗi tự do |
 | Google Fonts tải chặn render | Pi trong LAN không Internet → dashboard **trắng trang** tới khi DNS timeout | `media="print" onload="this.media='all'"` |
