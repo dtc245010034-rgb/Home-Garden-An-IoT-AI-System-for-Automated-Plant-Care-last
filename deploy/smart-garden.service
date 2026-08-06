@@ -1,0 +1,44 @@
+[Unit]
+Description=Smart Home Garden — SIC IoT Capstone (ESP32 + Gemini Vision + Dashboard)
+Documentation=file:///home/pi/smart_garden/SETUP_PI5.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+
+# Nhóm dialout để đọc /dev/ttyUSB0, video để đọc camera
+SupplementaryGroups=dialout video
+
+WorkingDirectory=/home/pi/smart_garden
+EnvironmentFile=/etc/smart-garden.env
+ExecStart=/home/pi/smart_garden/venv/bin/python -u /home/pi/smart_garden/main.py
+
+# --- Tự phục hồi: đây là thứ sửa lỗi "6 lần startup rải rác" trong log cũ ---
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=0
+
+# Chờ ESP32 và camera enumerate xong sau khi cắm/khởi động
+ExecStartPre=/bin/sleep 5
+
+# --- Ghi log ---
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smart-garden
+
+# --- Giới hạn tài nguyên (Pi 5 8GB vẫn thoải mái) ---
+MemoryMax=1G
+Nice=-5
+
+# --- Bảo vệ hệ thống ở mức vừa phải ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=/home/pi/smart_garden
+
+[Install]
+WantedBy=multi-user.target

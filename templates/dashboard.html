@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Garden — Bảng điều khiển</title>
+<!-- Font tải KHÔNG chặn render: Pi thường chạy trong LAN không có Internet,
+     nếu để rel="stylesheet" thường thì trang trắng tới khi DNS timeout. -->
+<link rel="stylesheet" media="print" onload="this.media='all'"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#101A0E; --panel:#1A2519; --panel-border:#2B3928;
+    --text:#EDF1E6; --muted:#8FA184;
+    --healthy:#7CB86F; --warn:#D9A441; --warn2:#C97A3D; --danger:#C4553D;
+    --temp:#E0965A; --air:#5B9BD1; --soil:#B08159; --light:#E8D06B;
+    --radius:16px;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:radial-gradient(1200px 600px at 15% -10%, rgba(124,184,111,0.08), transparent 60%), var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', -apple-system, 'Segoe UI', Arial, sans-serif;
+    min-height:100vh; padding:20px 14px 60px;
+  }
+  .wrap{ max-width:640px; margin:0 auto; }
+  h1,h2{ font-family:'Space Grotesk', 'IBM Plex Sans', sans-serif; margin:0; }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:10px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-mark{ font-size:28px; line-height:1; }
+  .brand h1{ font-size:19px; font-weight:700; letter-spacing:0.2px; }
+  .subtitle{ margin:2px 0 0; font-size:12px; color:var(--muted); }
+
+  .status-chip{
+    display:flex; align-items:center; gap:7px; background:var(--panel);
+    border:1px solid var(--panel-border); padding:6px 12px; border-radius:999px;
+    font-size:12px; color:var(--muted); white-space:nowrap;
+  }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+  .dot.ok{ background:var(--healthy); box-shadow:0 0 8px var(--healthy); }
+  .dot.slow{ background:var(--warn); box-shadow:0 0 8px var(--warn); }
+  .dot.bad{ background:var(--danger); box-shadow:0 0 8px var(--danger); }
+
+  .card{ background:var(--panel); border:1px solid var(--panel-border);
+         border-radius:var(--radius); padding:18px; margin-bottom:14px; }
+  .card-title{ font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:13px;
+    text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:14px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px; }
+
+  /* ---- BĂNG CẢNH BÁO ---- */
+  .banner{ border-radius:12px; padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.5;
+           display:flex; gap:10px; align-items:flex-start; }
+  .banner .ico{ font-size:16px; line-height:1.3; flex-shrink:0; }
+  .banner.danger{ background:rgba(196,85,61,0.14); border:1px solid rgba(196,85,61,0.5); color:#F0BCAF; }
+  .banner.warn{ background:rgba(217,164,65,0.13); border:1px solid rgba(217,164,65,0.45); color:#EFD69B; }
+  .banner b{ font-weight:600; }
+
+  /* ---- HERO ---- */
+  .hero{ text-align:center; }
+  .gauge-wrap{ position:relative; width:200px; height:200px; margin:0 auto; }
+  .gauge{ width:200px; height:200px; transform:rotate(-90deg); }
+  .gauge-track{ fill:none; stroke:#25321F; stroke-width:14; }
+  .gauge-fill{ fill:none; stroke:var(--muted); stroke-width:14; stroke-linecap:round;
+    transition: stroke-dashoffset 0.6s ease, stroke 0.4s ease; }
+  .gauge-center{ position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; }
+  .gauge-pct{ font-family:'Space Grotesk', sans-serif; font-size:40px; font-weight:700; }
+  .gauge-label{ font-size:12px; font-weight:600; letter-spacing:0.06em; color:var(--muted);
+    margin-top:4px; text-align:center; padding:0 10px; }
+  .ai-note{ margin:16px 0 4px; font-size:14px; }
+  .ai-meta{ margin:0; font-size:12px; color:var(--muted); }
+  .trust-tag{ display:inline-block; margin-top:8px; font-size:11px; font-weight:600;
+    padding:3px 10px; border-radius:999px; letter-spacing:0.04em; }
+  .trust-tag.ok{ background:rgba(124,184,111,0.16); color:var(--healthy); }
+  .trust-tag.no{ background:rgba(196,85,61,0.18); color:#E79180; }
+
+  .check-leaf-btn{ margin-top:16px; font-family:'IBM Plex Sans', sans-serif; font-weight:600;
+    font-size:13.5px; padding:12px 20px; border-radius:10px; border:1px solid var(--healthy);
+    background:transparent; color:var(--healthy); cursor:pointer; transition:all 0.15s ease; }
+  .check-leaf-btn:hover{ background:rgba(124,184,111,0.12); }
+  .check-leaf-btn:focus-visible{ outline:2px solid var(--healthy); outline-offset:2px; }
+  .check-leaf-btn:disabled{ opacity:0.45; cursor:wait; border-color:var(--panel-border); color:var(--muted); }
+  .check-leaf-hint{ margin:6px 0 0; font-size:11.5px; color:var(--muted); }
+
+  /* ---- STAT GRID ---- */
+  .stat-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:14px; }
+  .stat-card{ background:var(--panel); border:1px solid var(--panel-border); border-radius:12px;
+    padding:12px 10px; text-align:center; border-top:3px solid var(--accent, var(--muted)); }
+  .stat-label{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .stat-value{ font-family:'Space Grotesk', sans-serif; font-size:22px; font-weight:700; margin-top:4px; }
+  .stat-value .unit{ font-size:12px; font-weight:500; color:var(--muted); margin-left:1px; }
+  .stat-sub{ font-size:10px; color:var(--muted); margin-top:3px; min-height:12px; }
+  .stat-sub.dry{ color:var(--warn2); font-weight:600; }
+
+  /* ---- CHỌN KHOẢNG THỜI GIAN ---- */
+  .range-row{ display:flex; gap:6px; }
+  .range-btn{ font-family:inherit; font-size:11.5px; font-weight:600; padding:5px 11px;
+    border-radius:8px; border:1px solid var(--panel-border); background:transparent;
+    color:var(--muted); cursor:pointer; transition:all 0.15s ease; }
+  .range-btn:hover{ border-color:var(--healthy); color:var(--healthy); }
+  .range-btn.active{ background:var(--healthy); border-color:var(--healthy); color:#101A0E; }
+
+  /* ---- BIỂU ĐỒ ---- */
+  .trend-grid{ display:grid; grid-template-columns:1fr; gap:16px; }
+  .trend-head{ display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12px; margin-bottom:6px; }
+  .trend-range{ color:var(--muted); font-size:11px; }
+  .trend-svg{ width:100%; height:70px; display:block; }
+  .trend-empty{ font-size:12.5px; color:var(--muted); text-align:center; padding:18px 0; }
+  .src-tag{ font-size:10.5px; color:var(--muted); text-align:right; margin-top:10px; }
+
+  /* ---- ẢNH ---- */
+  .photo-frame{ border-radius:12px; overflow:hidden; border:1px solid var(--panel-border);
+    background:#0C140A; min-height:150px; display:flex; align-items:center; justify-content:center; }
+  .photo-frame img{ width:100%; display:block; }
+  .photo-empty{ font-size:12.5px; color:var(--muted); padding:40px 10px; text-align:center; }
+  .strip{ display:flex; gap:8px; overflow-x:auto; padding:12px 2px 4px; }
+  .thumb{ flex:0 0 74px; cursor:pointer; border:2px solid transparent; border-radius:9px;
+    overflow:hidden; background:#0C140A; position:relative; }
+  .thumb.active{ border-color:var(--healthy); }
+  .thumb img{ width:74px; height:56px; object-fit:cover; display:block; }
+  .thumb .badge{ position:absolute; top:2px; right:2px; font-size:9px; padding:1px 4px;
+    border-radius:4px; background:rgba(0,0,0,0.6); }
+  .thumb .time{ font-size:9px; color:var(--muted); text-align:center; padding:2px 0; }
+
+  /* ---- THIẾT BỊ ---- */
+  .device-row{ display:flex; justify-content:space-between; align-items:center;
+    font-size:13.5px; padding:8px 0; border-bottom:1px solid rgba(43,57,40,0.6); }
+  .device-row:last-of-type{ border-bottom:none; }
+  .pill{ font-size:11.5px; font-weight:600; padding:4px 12px; border-radius:999px;
+    background:#25321F; color:var(--muted); }
+  .pill.on{ background:rgba(124,184,111,0.18); color:var(--healthy); }
+  .pill.locked{ background:rgba(217,164,65,0.18); color:var(--warn); }
+  .reason{ font-size:12.5px; color:var(--muted); line-height:1.55; margin-top:10px;
+    padding:10px 12px; background:rgba(16,26,14,0.6); border-radius:10px;
+    border-left:3px solid var(--panel-border); }
+  .reason b{ color:var(--text); font-weight:600; }
+  .level-tag{ display:inline-block; font-family:'Space Grotesk',sans-serif; font-size:10.5px;
+    font-weight:700; letter-spacing:0.06em; padding:3px 9px; border-radius:6px;
+    background:#25321F; color:var(--muted); }
+  .level-tag.lv1{ background:rgba(196,85,61,0.2); color:#E79180; }
+  .level-tag.lv2{ background:rgba(91,155,209,0.18); color:#93C0E6; }
+  .level-tag.lv3{ background:rgba(217,164,65,0.18); color:var(--warn); }
+  .level-tag.lv4{ background:rgba(201,122,61,0.18); color:#E0A277; }
+
+  /* ---- ĐIỀU KHIỂN ---- */
+  .override-banner{ background:rgba(217,164,65,0.13); border:1px solid rgba(217,164,65,0.45);
+    color:#EFD69B; border-radius:10px; padding:9px 12px; font-size:12.5px; margin-bottom:12px; }
+  .btn-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .cmd-btn{ font-family:inherit; font-size:12.5px; font-weight:600; padding:12px 6px;
+    border-radius:10px; border:1px solid var(--panel-border); background:#25321F;
+    color:var(--text); cursor:pointer; transition:all 0.15s ease; }
+  .cmd-btn:hover{ border-color:var(--healthy); }
+  .cmd-btn:focus-visible{ outline:2px solid var(--healthy); outline-offset:2px; }
+  .cmd-btn.auto{ grid-column:span 3; border-color:var(--healthy); color:var(--healthy); background:transparent; }
+
+  /* ---- MA TRẬN FUSION ---- */
+  .matrix{ width:100%; border-collapse:collapse; font-size:11.5px; }
+  .matrix th,.matrix td{ padding:7px 8px; text-align:left; border-bottom:1px solid rgba(43,57,40,0.7); }
+  .matrix th{ color:var(--muted); font-weight:600; font-size:10.5px;
+    text-transform:uppercase; letter-spacing:0.04em; }
+  .matrix td:first-child{ font-weight:600; white-space:nowrap; }
+  .matrix tr.hit{ background:rgba(124,184,111,0.10); }
+  .matrix tr.hit td{ color:var(--text); }
+  .matrix td{ color:var(--muted); }
+
+  /* ---- SỰ KIỆN ---- */
+  .ev{ display:flex; gap:10px; font-size:12px; padding:7px 0;
+       border-bottom:1px solid rgba(43,57,40,0.5); }
+  .ev:last-child{ border-bottom:none; }
+  .ev-time{ color:var(--muted); flex:0 0 108px; font-variant-numeric:tabular-nums; }
+  .ev-name{ font-weight:600; flex:0 0 118px; }
+  .ev-name.err{ color:var(--danger); }
+  .ev-name.warn{ color:var(--warn); }
+  .ev-detail{ color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .link-btn{ font-family:inherit; font-size:11.5px; font-weight:600; color:var(--healthy);
+    background:none; border:none; cursor:pointer; padding:0; text-decoration:underline; }
+
+  .toast{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:#25321F; border:1px solid var(--healthy); color:var(--text);
+    padding:11px 18px; border-radius:10px; font-size:13px; max-width:90vw; z-index:50; }
+  .toast.err{ border-color:var(--danger); }
+  .foot{ text-align:center; font-size:11px; color:var(--muted); margin-top:18px; line-height:1.6; }
+
+  @media (max-width:420px){
+    .stat-grid{ grid-template-columns:repeat(2,1fr); }
+    .ev-time{ flex:0 0 74px; } .ev-name{ flex:0 0 96px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🌿</span>
+      <div>
+        <h1>Smart Garden</h1>
+        <p class="subtitle">SIC IoT Capstone · v2</p>
+      </div>
+    </div>
+    <div class="status-chip">
+      <span class="dot" id="connDot"></span>
+      <span id="connLabel">Đang kết nối…</span>
+    </div>
+  </div>
+
+  <!-- Cảnh báo camera (BLOCKER 1) -->
+  <div class="banner danger" id="camBanner" hidden>
+    <span class="ico">📷</span><div><b>Cảnh báo camera</b><br><span id="camMsg"></span></div>
+  </div>
+  <!-- Cảnh báo thối rễ / khẩn cấp -->
+  <div class="banner danger" id="emgBanner" hidden>
+    <span class="ico">🚨</span><div id="emgMsg"></div>
+  </div>
+  <!-- ESP32 tự quay về AUTO vì mất liên lạc serial (watchdog firmware v2.1) -->
+  <div class="banner warn" id="wdBanner" hidden>
+    <span class="ico">🐕</span><div><b>ESP32 đã tự quay về AUTO</b><br>
+    Firmware phát hiện mất liên lạc với Pi quá 60 giây nên đã huỷ mọi lệnh thủ công
+    để bơm không chạy vô thời hạn. Kiểm tra cáp USB và <code>journalctl -u smart-garden</code>.</div>
+  </div>
+  <!-- Khoá phun sương -->
+  <div class="banner warn" id="mistBanner" hidden>
+    <span class="ico">🍄</span><div><b>Phun sương đang bị khoá</b><br>
+    AI phát hiện đốm nâu — độ ẩm cao làm nấm lan nhanh. Tưới gốc vẫn hoạt động bình thường.</div>
+  </div>
+
+  <!-- HERO -->
+  <div class="card hero">
+    <div class="gauge-wrap">
+      <svg class="gauge" viewBox="0 0 200 200">
+        <circle class="gauge-track" cx="100" cy="100" r="88"></circle>
+        <circle class="gauge-fill" id="gaugeFill" cx="100" cy="100" r="88"></circle>
+      </svg>
+      <div class="gauge-center">
+        <div class="gauge-pct" id="gaugePct">--</div>
+        <div class="gauge-label" id="gaugeLabel">CHƯA CÓ DỮ LIỆU</div>
+      </div>
+    </div>
+    <p class="ai-note" id="aiNote">Đang chờ lần chẩn đoán AI đầu tiên (chu kỳ 15 phút)…</p>
+    <p class="ai-meta" id="aiMeta"></p>
+    <span class="trust-tag" id="trustTag" hidden></span>
+    <br>
+    <button class="check-leaf-btn" id="checkLeafBtn">📷 Chụp &amp; chẩn đoán ngay (CHECK_LEAF)</button>
+    <p class="check-leaf-hint" id="checkLeafHint"></p>
+  </div>
+
+  <!-- CẢM BIẾN -->
+  <div class="stat-grid">
+    <div class="stat-card" style="--accent:var(--temp)">
+      <div class="stat-label">Nhiệt độ</div>
+      <div class="stat-value"><span id="vTemp">--</span><span class="unit">°C</span></div>
+      <div class="stat-sub"></div>
+    </div>
+    <div class="stat-card" style="--accent:var(--air)">
+      <div class="stat-label">Ẩm không khí</div>
+      <div class="stat-value"><span id="vHumi">--</span><span class="unit">%</span></div>
+      <div class="stat-sub"></div>
+    </div>
+    <div class="stat-card" style="--accent:var(--soil)">
+      <div class="stat-label">Độ ẩm đất</div>
+      <div class="stat-value"><span id="vSoil">--</span><span class="unit">%</span></div>
+      <div class="stat-sub" id="soilSub"></div>
+    </div>
+    <div class="stat-card" style="--accent:var(--light)">
+      <div class="stat-label">Ánh sáng</div>
+      <div class="stat-value"><span id="vLight">--</span><span class="unit">%</span></div>
+      <div class="stat-sub"></div>
+    </div>
+  </div>
+
+  <!-- BIỂU ĐỒ -->
+  <div class="card">
+    <div class="card-title">
+      <span>Diễn biến</span>
+      <span class="range-row">
+        <button class="range-btn active" data-min="60">1 giờ</button>
+        <button class="range-btn" data-min="360">6 giờ</button>
+        <button class="range-btn" data-min="1440">24 giờ</button>
+        <button class="range-btn" data-min="10080">7 ngày</button>
+      </span>
+    </div>
+    <div id="trendGrid" class="trend-grid" hidden>
+      <div>
+        <div class="trend-head"><span>Nhiệt độ</span><span class="trend-range" id="rangeTemp">--</span></div>
+        <svg class="trend-svg" id="chartTemp" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+      </div>
+      <div>
+        <div class="trend-head"><span>Độ ẩm không khí</span><span class="trend-range" id="rangeHumi">--</span></div>
+        <svg class="trend-svg" id="chartHumi" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+      </div>
+      <div>
+        <div class="trend-head"><span>Độ ẩm đất</span><span class="trend-range" id="rangeSoil">--</span></div>
+        <svg class="trend-svg" id="chartSoil" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+      </div>
+      <div>
+        <div class="trend-head"><span>Ánh sáng</span><span class="trend-range" id="rangeLight">--</span></div>
+        <svg class="trend-svg" id="chartLight" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+    <div class="trend-empty" id="trendEmpty">Đang thu thập dữ liệu để vẽ biểu đồ…</div>
+    <div class="src-tag" id="srcTag"></div>
+  </div>
+
+  <!-- ẢNH -->
+  <div class="card">
+    <div class="card-title">
+      <span>Ảnh lá cây</span>
+      <button class="link-btn" id="reloadPhotos">Tải lại kho ảnh</button>
+    </div>
+    <div class="photo-frame">
+      <img id="leafPhoto" alt="Ảnh lá cây" hidden>
+      <div class="photo-empty" id="photoEmpty">Chưa có ảnh nào được chụp</div>
+    </div>
+    <div class="strip" id="photoStrip"></div>
+    <p class="check-leaf-hint" id="photoCaption"></p>
+  </div>
+
+  <!-- THIẾT BỊ -->
+  <div class="card">
+    <div class="card-title">Thiết bị &amp; quyết định</div>
+    <div class="device-row"><span>Bơm tưới gốc</span><span class="pill" id="pillWater">TẮT</span></div>
+    <div class="device-row"><span>Phun sương</span><span class="pill" id="pillMist">TẮT</span></div>
+    <div class="device-row"><span>Chế độ (ESP32)</span><span class="pill" id="pillMode">--</span></div>
+    <div class="device-row"><span>Mức quyết định (Pi)</span><span class="level-tag" id="levelTag">—</span></div>
+    <div class="reason"><b>ESP32:</b> <span id="reasonEsp">—</span></div>
+    <div class="reason"><b>Hệ thống Pi:</b> <span id="reasonPi">—</span></div>
+  </div>
+
+  <!-- MA TRẬN FUSION -->
+  <div class="card">
+    <div class="card-title">Ma trận quyết định AI × Độ ẩm đất</div>
+    <table class="matrix">
+      <thead><tr><th>AI chẩn đoán</th><th>Đất khô (&lt;<span id="thr">40</span>%)</th><th>Đất đủ ẩm</th></tr></thead>
+      <tbody>
+        <tr data-state="heo_ru"><td>🔴 Héo rũ ≥70%</td>
+          <td>Tưới xung 60s → AUTO</td><td>Khoá tưới · nghi thối rễ</td></tr>
+        <tr data-state="dom_nau"><td>🟠 Đốm nâu</td>
+          <td>Cấm sương · tưới gốc</td><td>Cấm sương · theo dõi nấm</td></tr>
+        <tr data-state="vang_la"><td>🟡 Vàng lá</td>
+          <td>AUTO theo ngưỡng</td><td>Cảnh báo thiếu đạm</td></tr>
+        <tr data-state="binh_thuong"><td>🟢 Bình thường</td>
+          <td>AUTO</td><td>AUTO</td></tr>
+        <tr data-state="khong_xac_dinh"><td>⚪ Không xác định</td>
+          <td>AUTO (bỏ qua AI)</td><td>AUTO (bỏ qua AI)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ĐIỀU KHIỂN -->
+  <div class="card">
+    <div class="card-title">Điều khiển thủ công</div>
+    <div class="override-banner" id="overrideBanner" hidden>
+      ⏱ Đang override thủ công — tự trả về AUTO sau <b id="overrideCountdown">--</b>
+    </div>
+    <div class="btn-grid">
+      <button class="cmd-btn" data-cmd="WATER_ON">💧 Bật tưới</button>
+      <button class="cmd-btn" data-cmd="WATER_OFF">Tắt tưới</button>
+      <button class="cmd-btn" data-cmd="LOCK_IDLE">🔒 Khoá</button>
+      <button class="cmd-btn" data-cmd="MIST_ON">🌫 Bật sương</button>
+      <button class="cmd-btn" data-cmd="MIST_OFF">Tắt sương</button>
+      <button class="cmd-btn" data-cmd="AUTO" style="grid-column:span 1">↩︎ AUTO</button>
+    </div>
+  </div>
+
+  <!-- NHẬT KÝ -->
+  <div class="card">
+    <div class="card-title">
+      <span>Nhật ký hệ thống</span>
+      <button class="link-btn" id="dlCsv">Tải CSV 24h</button>
+    </div>
+    <div id="evList"><div class="trend-empty">Đang tải…</div></div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <p class="foot">
+    Cập nhật mỗi 3 giây · Dữ liệu lưu bền vững trong SQLite<br>
+    <span id="statsLine">—</span> · <span id="clock">--:--:--</span>
+  </p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+// Ghi chú của AI và lý do của ESP32 là chuỗi tự do — phải escape trước khi
+// nhét vào innerHTML, nếu không một dấu < trong ghi chú sẽ làm hỏng cả danh sách.
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const CIRC = 2 * Math.PI * 88;
+const gaugeFill = $('gaugeFill'), gaugePct = $('gaugePct'), gaugeLabel = $('gaugeLabel');
+const toast = $('toast'), checkLeafBtn = $('checkLeafBtn');
+const trendGrid = $('trendGrid'), trendEmpty = $('trendEmpty');
+
+const TREND_METRICS = [
+  { key:'temp',  svgId:'chartTemp',  rangeId:'rangeTemp',  color:'var(--temp)',  unit:'°C' },
+  { key:'humi',  svgId:'chartHumi',  rangeId:'rangeHumi',  color:'var(--air)',   unit:'%'  },
+  { key:'soil',  svgId:'chartSoil',  rangeId:'rangeSoil',  color:'var(--soil)',  unit:'%'  },
+  { key:'light', svgId:'chartLight', rangeId:'rangeLight', color:'var(--light)', unit:'%'  },
+];
+
+const AI_STYLE = {
+  binh_thuong:    { pct:100, color:'var(--healthy)', label:'CÂY KHOẺ MẠNH' },
+  vang_la:        { pct:60,  color:'var(--warn)',    label:'VÀNG LÁ' },
+  dom_nau:        { pct:40,  color:'var(--warn2)',   label:'ĐỐM NÂU' },
+  heo_ru:         { pct:15,  color:'var(--danger)',  label:'HÉO RŨ' },
+  khong_xac_dinh: { pct:0,   color:'var(--muted)',   label:'KHÔNG XÁC ĐỊNH' },
+};
+
+let rangeMinutes = 60;
+let toastTimer = null;
+let selectedPhoto = null;
+
+gaugeFill.style.strokeDasharray = CIRC;
+gaugeFill.style.strokeDashoffset = CIRC;
+
+function fmtMMSS(sec){
+  const m = Math.floor(sec/60), s = sec%60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function setGauge(pct, color){
+  const c = Math.max(0, Math.min(100, pct));
+  gaugeFill.style.stroke = color;
+  gaugeFill.style.strokeDashoffset = CIRC * (1 - c/100);
+  gaugePct.textContent = c + '%';
+}
+
+function updateConn(age){
+  const d = $('connDot'), l = $('connLabel');
+  if (age === null || age === undefined){ d.className='dot'; l.textContent='Chưa nhận dữ liệu từ ESP32'; }
+  else if (age <= 10){ d.className='dot ok'; l.textContent='Đang hoạt động'; }
+  else if (age <= 30){ d.className='dot slow'; l.textContent='Tín hiệu chậm ('+Math.round(age)+'s)'; }
+  else { d.className='dot bad'; l.textContent='Mất kết nối ESP32 ('+Math.round(age)+'s)'; }
+}
+
+function levelClass(lv){
+  if (!lv) return '';
+  if (lv.startsWith('1')) return 'lv1';
+  if (lv.startsWith('2')) return 'lv2';
+  if (lv.startsWith('3')) return 'lv3';
+  if (lv.startsWith('4')) return 'lv4';
+  return '';
+}
+
+async function fetchStatus(){
+  try {
+    const data = await (await fetch('/api/status')).json();
+    const s = data.sensor || {}, ai = data.ai;
+
+    updateConn(data.sensor_age_sec);
+    $('clock').textContent = data.server_time || '--:--:--';
+    $('thr').textContent = data.soil_threshold;
+
+    $('vTemp').textContent  = s.temp  !== undefined ? s.temp  : '--';
+    $('vHumi').textContent  = s.humi  !== undefined ? s.humi  : '--';
+    $('vSoil').textContent  = s.soil  !== undefined ? s.soil  : '--';
+    $('vLight').textContent = s.light !== undefined ? s.light : '--';
+
+    const soilSub = $('soilSub');
+    if (data.soil_is_dry === true){ soilSub.textContent = 'KHÔ · dưới ngưỡng'; soilSub.className='stat-sub dry'; }
+    else if (data.soil_is_dry === false){ soilSub.textContent = 'đủ ẩm'; soilSub.className='stat-sub'; }
+    else { soilSub.textContent = 'chưa có số liệu'; soilSub.className='stat-sub'; }
+
+    // --- AI ---
+    if (ai){
+      const st = AI_STYLE[ai.trang_thai] || AI_STYLE.khong_xac_dinh;
+      setGauge(ai.trusted ? st.pct : 0, st.color);
+      gaugeLabel.textContent = st.label;
+      $('aiNote').textContent = ai.ghi_chu || '—';
+      $('aiMeta').textContent = 'Chẩn đoán lúc ' + (ai.timestamp||'?') +
+        ' · độ tin cậy ' + ai.do_tin_cay + '%' +
+        (ai.raw_state && ai.raw_state !== ai.trang_thai ? ' · AI gốc: "'+ai.raw_state+'"' : '');
+      const tt = $('trustTag');
+      tt.hidden = false;
+      tt.textContent = ai.trusted ? '✓ ĐỦ TIN CẬY ĐỂ RA QUYẾT ĐỊNH' : '✕ KHÔNG ĐỦ TIN CẬY — BỎ QUA AI';
+      tt.className = 'trust-tag ' + (ai.trusted ? 'ok' : 'no');
+
+      document.querySelectorAll('.matrix tbody tr').forEach(tr => {
+        tr.classList.toggle('hit', tr.dataset.state === ai.trang_thai);
+      });
+    }
+
+    // --- Băng cảnh báo ---
+    $('camBanner').hidden = !data.camera_alert;
+    if (data.camera_alert) $('camMsg').textContent = data.camera_alert;
+
+    const emgW = data.emergency_water_remaining, rrH = data.rootrot_hold_remaining;
+    if (emgW > 0){
+      $('emgBanner').hidden = false;
+      $('emgMsg').innerHTML = '<b>Đang tưới khẩn cấp</b><br>AI phát hiện héo rũ + đất khô. '
+        + 'Bơm tự tắt sau <b>' + emgW + 's</b> rồi trả về AUTO.';
+    } else if (rrH > 0){
+      $('emgBanner').hidden = false;
+      $('emgMsg').innerHTML = '<b>Nghi thối rễ — đã khoá tưới</b><br>'
+        + 'AI báo héo rũ nhưng đất còn ẩm. Tưới thêm sẽ làm cây chết nhanh hơn. '
+        + 'Mở khoá sau <b>' + fmtMMSS(rrH) + '</b>. Hãy kiểm tra rễ và khả năng thoát nước.';
+    } else { $('emgBanner').hidden = true; }
+
+    $('mistBanner').hidden = !data.mist_locked;
+    $('wdBanner').hidden = String(s.wd_tripped).toLowerCase() !== 'true';
+
+    // --- Thiết bị ---
+    const wOn = String(s.water).toLowerCase() === 'true';
+    const mOn = String(s.mist).toLowerCase()  === 'true';
+    $('pillWater').textContent = wOn ? 'BẬT' : 'TẮT';
+    $('pillWater').className = 'pill' + (wOn ? ' on' : '');
+    $('pillMist').textContent = data.mist_locked ? 'KHOÁ' : (mOn ? 'BẬT' : 'TẮT');
+    $('pillMist').className = 'pill' + (data.mist_locked ? ' locked' : (mOn ? ' on' : ''));
+    $('pillMode').textContent = s.mode || '--';
+    $('pillMode').className = 'pill' + (s.mode === 'AUTO' ? ' on' : '');
+
+    const lt = $('levelTag');
+    lt.textContent = data.decision_level || '—';
+    lt.className = 'level-tag ' + levelClass(data.decision_level);
+
+    $('reasonEsp').textContent = s.reason || '—';
+    $('reasonPi').textContent  = data.last_reason || '—';
+
+    // --- Override ---
+    const ov = data.manual_override_remaining;
+    $('overrideBanner').hidden = !(ov > 0);
+    if (ov > 0) $('overrideCountdown').textContent = fmtMMSS(ov);
+
+    // --- CHECK_LEAF cooldown ---
+    const cd = data.check_leaf_cooldown_remaining;
+    checkLeafBtn.disabled = cd > 0;
+    $('checkLeafHint').textContent = cd > 0
+      ? 'Chờ ' + cd + 's để tránh tốn quota Gemini'
+      : 'Chu kỳ tự động 15 phút · bấm để chẩn đoán ngay';
+
+    if (data.latest_photo && data.latest_photo !== selectedPhoto && !selectedPhoto){
+      refreshLatestPhoto();
+    }
+  } catch(e){ updateConn(999); }
+}
+
+function drawSparkline(svgEl, values, color){
+  const ys = values.filter(v => typeof v === 'number' && !isNaN(v));
+  if (ys.length < 2){ svgEl.innerHTML = ''; return null; }
+  const W = 300, H = 70, P = 6;
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const span = (maxY - minY) || 1;
+  const stepX = (W - P*2) / (ys.length - 1);
+  const pts = ys.map((v,i) => [P + i*stepX, H - P - ((v - minY)/span) * (H - P*2)]);
+  const linePts = pts.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const areaPts = `${P},${H-P} ${linePts} ${(W-P).toFixed(1)},${H-P}`;
+  const [lx, ly] = pts[pts.length-1];
+  svgEl.innerHTML = `
+    <polygon points="${areaPts}" fill="${color}" opacity="0.10"></polygon>
+    <polyline points="${linePts}" fill="none" stroke="${color}" stroke-width="2.2"
+              stroke-linejoin="round" stroke-linecap="round"
+              vector-effect="non-scaling-stroke"></polyline>
+    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3" fill="${color}"></circle>`;
+  return { min:minY.toFixed(1), max:maxY.toFixed(1), last:ys[ys.length-1] };
+}
+
+async function fetchHistory(){
+  try {
+    const data = await (await fetch('/api/history?minutes=' + rangeMinutes)).json();
+    const hist = data.history || [];
+    if (hist.length < 2){
+      trendGrid.hidden = true; trendEmpty.hidden = false;
+      trendEmpty.textContent = 'Chưa đủ dữ liệu cho khoảng thời gian này.';
+      $('srcTag').textContent = '';
+      return;
+    }
+    trendGrid.hidden = false; trendEmpty.hidden = true;
+    TREND_METRICS.forEach(m => {
+      const st = drawSparkline($(m.svgId), hist.map(p => p[m.key]), m.color);
+      $(m.rangeId).textContent = st
+        ? `${st.min}${m.unit} — ${st.max}${m.unit} · hiện tại ${st.last}${m.unit}` : '--';
+    });
+    $('srcTag').textContent = hist.length + ' điểm · nguồn: '
+      + (data.source === 'sqlite' ? 'SQLite (bền vững)' : 'bộ nhớ tạm')
+      + (data.total_rows ? ' · ' + data.total_rows + ' bản ghi gốc' : '');
+  } catch(e){}
+}
+
+async function refreshLatestPhoto(){
+  const img = $('leafPhoto'), empty = $('photoEmpty');
+  const test = new Image();
+  test.onload = () => { img.src = test.src; img.hidden = false; empty.hidden = true; };
+  test.onerror = () => { img.hidden = true; empty.hidden = false; };
+  test.src = '/api/image?t=' + Date.now();
+  $('photoCaption').textContent = 'Ảnh mới nhất';
+}
+
+async function fetchPhotos(){
+  try {
+    const data = await (await fetch('/api/photos')).json();
+    const strip = $('photoStrip');
+    strip.innerHTML = '';
+    (data.photos || []).slice(0, 20).forEach(p => {
+      const el = document.createElement('div');
+      el.className = 'thumb';
+      const badge = p.trusted === 1 ? (p.do_tin_cay + '%') : '⚪';
+      // leaf_YYYYmmdd_HHMMSS.jpg -> giờ nằm ở vị trí 14, phút ở 16
+      const hhmm = (p.name.slice(14,16) + ':' + p.name.slice(16,18));
+      el.innerHTML = `<img src="/api/photo/${esc(p.name)}" alt="${esc(p.name)}" loading="lazy">
+                      <span class="badge">${badge}</span><div class="time">${hhmm}</div>`;
+      el.onclick = () => {
+        selectedPhoto = p.name;
+        $('leafPhoto').src = '/api/photo/' + p.name;
+        $('leafPhoto').hidden = false; $('photoEmpty').hidden = true;
+        $('photoCaption').textContent = (p.ts || p.name) + ' — ' + (p.ghi_chu || 'không có ghi chú');
+        document.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+      };
+      strip.appendChild(el);
+    });
+    if (!(data.photos || []).length) strip.innerHTML =
+      '<span class="check-leaf-hint">Kho ảnh trống — bấm CHECK_LEAF để chụp ảnh đầu tiên.</span>';
+  } catch(e){}
+}
+
+const EV_LABEL = {
+  startup:'Khởi động', ai_diagnosis:'Chẩn đoán AI', emergency_watering:'Tưới khẩn cấp',
+  camera_alert:'Cảnh báo camera', manual_command:'Lệnh thủ công', error:'Lỗi',
+  esp32_event:'Sự kiện ESP32',
+};
+
+async function fetchEvents(){
+  try {
+    const data = await (await fetch('/api/events?limit=25')).json();
+    const list = $('evList');
+    const evs = data.events || [];
+    if (!evs.length){ list.innerHTML = '<div class="trend-empty">Chưa có sự kiện nào.</div>'; return; }
+    list.innerHTML = evs.map(e => {
+      let d = '';
+      try {
+        const o = JSON.parse(e.detail || '{}');
+        d = o.result ? (o.result.trang_thai + ' ' + o.result.do_tin_cay + '% — ' + (o.result.ghi_chu||''))
+          : (o.message || o.ghi_chu || o.cmd || JSON.stringify(o));
+      } catch(_) { d = e.detail || ''; }
+      const cls = e.event === 'error' ? 'err'
+                : (e.event === 'camera_alert' || e.event === 'emergency_watering'
+                   || e.event === 'esp32_event') ? 'warn' : '';
+      return `<div class="ev"><span class="ev-time">${esc(e.ts.slice(5))}</span>
+              <span class="ev-name ${cls}">${esc(EV_LABEL[e.event] || e.event)}</span>
+              <span class="ev-detail" title="${esc(d)}">${esc(d)}</span></div>`;
+    }).join('');
+  } catch(e){}
+}
+
+async function fetchStats(){
+  try {
+    const d = await (await fetch('/api/stats')).json();
+    const acc = d.ai_total ? Math.round(d.ai_trusted / d.ai_total * 100) : 0;
+    $('statsLine').textContent =
+      `${d.sensor_rows} bản ghi cảm biến · ${d.ai_total} lần chẩn đoán (${acc}% đáng tin) · `
+      + `${d.emergency_count} lần tưới khẩn cấp`;
+  } catch(e){}
+}
+
+function showToast(msg, ok){
+  toast.textContent = msg;
+  toast.className = 'toast' + (ok ? '' : ' err');
+  toast.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.hidden = true; }, 4200);
+}
+
+document.querySelectorAll('.cmd-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/command', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ cmd: btn.dataset.cmd })
+      });
+      const data = await res.json();
+      showToast(data.message, data.ok);
+      if (data.ok) fetchStatus();
+    } catch(e){ showToast('Không gửi được lệnh', false); }
+    btn.disabled = false;
+  });
+});
+
+checkLeafBtn.addEventListener('click', async () => {
+  checkLeafBtn.disabled = true;
+  $('checkLeafHint').textContent = 'Đang chụp và gửi cho AI…';
+  try {
+    const res = await fetch('/api/check_leaf', { method:'POST' });
+    const data = await res.json();
+    showToast(data.message, data.ok);
+    selectedPhoto = null;
+    fetchStatus(); refreshLatestPhoto(); fetchPhotos(); fetchEvents();
+  } catch(e){ showToast('Lỗi khi gọi chẩn đoán', false); }
+});
+
+document.querySelectorAll('.range-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.range-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    rangeMinutes = parseInt(b.dataset.min, 10);
+    fetchHistory();
+  });
+});
+
+$('reloadPhotos').addEventListener('click', () => { selectedPhoto = null; refreshLatestPhoto(); fetchPhotos(); });
+$('dlCsv').addEventListener('click', () => { window.location.href = '/api/export.csv?hours=24'; });
+
+fetchStatus(); fetchHistory(); refreshLatestPhoto(); fetchPhotos(); fetchEvents(); fetchStats();
+setInterval(fetchStatus, 3000);
+setInterval(fetchHistory, 20000);
+setInterval(fetchEvents, 30000);
+setInterval(fetchStats, 60000);
+</script>
+</body>
+</html>

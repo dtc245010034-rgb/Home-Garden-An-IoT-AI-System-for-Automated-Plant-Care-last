@@ -1,0 +1,28 @@
+# --- Dữ liệu chạy thật: KHÔNG đưa lên GitHub ---
+smart_garden.db
+smart_garden.db-wal
+smart_garden.db-shm
+smart_garden_events.log
+photos/
+
+# --- Bí mật ---
+.env
+*.env
+!deploy/*.service
+
+# --- Môi trường Python ---
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# --- Arduino ---
+build/
+*.hex
+*.elf
+
+# --- Hệ điều hành / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

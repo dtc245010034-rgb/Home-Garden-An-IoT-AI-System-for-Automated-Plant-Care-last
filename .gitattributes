@@ -1,0 +1,12 @@
+# Chuẩn hoá kết thúc dòng. Các file dưới đây PHẢI là LF, nếu bị Windows đổi
+# thành CRLF thì bash trên Raspberry Pi báo "bad interpreter" và systemd
+# không đọc được unit file.
+* text=auto eol=lf
+*.sh        text eol=lf
+*.service   text eol=lf
+*.py        text eol=lf
+*.ino       text eol=lf
+
+*.jpg  binary
+*.png  binary
+*.db   binary

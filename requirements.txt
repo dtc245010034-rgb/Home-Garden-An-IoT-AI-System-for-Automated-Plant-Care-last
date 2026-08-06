@@ -1,0 +1,10 @@
+# Smart Home Garden — thư viện Python cho Raspberry Pi 5 (Bookworm 64-bit)
+#   ./venv/bin/pip install -r requirements.txt
+#
+# Dùng opencv-python-headless (không phải opencv-python) vì Pi chạy không màn hình:
+# bản headless nhẹ hơn ~200MB và không cần Qt/GTK.
+
+flask>=3.0
+pyserial>=3.5
+opencv-python-headless>=4.9
+google-genai>=1.0
