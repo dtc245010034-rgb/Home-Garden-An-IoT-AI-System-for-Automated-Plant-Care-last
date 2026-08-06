@@ -4,8 +4,24 @@
 > mức 1 không rẽ theo độ ẩm đất, mức 4 ghi "không ép actuator" (sai với `dom_nau`), và sequence còn ghi
 > bounded-pulse là "đề xuất" trong khi nó đã được cài đặt. Bản này đã sửa cả ba.
 >
-> **Cách dùng:** copy từng khối code vào https://mermaid.live → Actions → Export PNG, đặt scale **3x**
-> (mặc định 1x sẽ mờ khi in A4) hoặc SVG → Insert → Picture vào file `.docx`.
+> **PNG đã xuất sẵn ở [`hinh/`](hinh/)**, scale 3x, nền trắng, dán thẳng vào `.docx`
+> được. Chỉ cần xuất lại khi sửa mã nguồn sơ đồ (xem mục cuối tài liệu).
+
+## File PNG và vị trí trong báo cáo
+
+| File trong `hinh/` | Mục Final Report | Caption |
+|---|---|---|
+| `01-kien-truc-tong-quan.png` | 2.1 | Figure 2.1 — System architecture overview |
+| `02-cay-quyet-dinh-5-muc.png` | 2.3 | Figure 2.3 — Five-level priority decision tree |
+| `03-luong-xu-ly-du-lieu.png` | 2.2 | Figure 2.2 — Data processing flow |
+| `04a-sequence-tuoi-khan-cap.png` | 3.5 | Figure 3.5 — Emergency watering sequence with bounded pulse |
+| `04b-sequence-watchdog.png` | 2.3 hoặc 3.5 | Figure — Serial watchdog releasing a forced actuator |
+| `05-so-do-trien-khai.png` | 3.2 | Figure 3.2 — Deployment and network topology |
+| `06-gantt-wbs.png` | 1.4 | Figure 1.1 — Project schedule |
+| `07-so-do-chan-cam.png` | 3.3 | Figure 3.3 — ESP32 pin assignment |
+
+Sơ đồ 2 nên đặt riêng một trang khổ ngang. Sơ đồ 7 rất rộng (tỷ lệ khoảng 4.8:1),
+đặt ngang hoặc thu theo chiều rộng trang.
 
 | Sơ đồ | Đưa vào mục Final Report | Đổi so với bản cũ |
 |---|---|---|
@@ -55,7 +71,7 @@ flowchart TB
     AI <-->|"HTTPS · upload ảnh / JSON"| GEM
     AI --> PH
     AI --> VAL
-    VAL -->|"latest_ai_result<br/>(chỉ reply hợp lệ)"| DL
+    VAL --> DL
     SR -->|"latest_sensor"| DL
     DL -->|"send_command (dedupe)"| SR
     SR <-->|"UART 115200<br/>JSON hai chiều"| SEN
@@ -69,7 +85,7 @@ flowchart TB
     WEB <-->|"HTTP polling 3s"| API
     API --> DB
     API --> PH
-    API -->|"apply_manual_command<br/>(lease 600s)"| DL
+    API -->|"lệnh tay · lease 600s"| DL
 
     style CLOUD fill:#FAECE7,stroke:#993C1D
     style EDGE fill:#EEEDFE,stroke:#534AB7
@@ -393,6 +409,25 @@ flowchart LR
    trong lúc ESP32 đang boot.
 
 ---
+
+## Xuất lại PNG sau khi sửa sơ đồ
+
+Các file trong `hinh/` được dựng bằng Chrome headless, không cần cài mermaid-cli.
+Script đo kích thước SVG trước rồi chụp đúng khung ở `--force-device-scale-factor=3`,
+nên ảnh không thừa lề và không bị cắt:
+
+```bash
+python doc/mkpng.py doc/smart_garden_diagrams_v2.md /tmp/render doc/hinh
+```
+
+Sửa mã sơ đồ xong thì chạy lại lệnh trên, mọi PNG được ghi đè.
+
+Hai lỗi đã gặp khi dựng, ghi lại để khỏi mất công lần sau:
+
+- Dấu chấm phẩy trong `Note` của `sequenceDiagram` bị hiểu là dấu kết thúc câu lệnh
+  và làm hỏng cả khối. Dùng dấu chấm thay thế.
+- Hai cạnh cùng đổ vào một nút sẽ bị dagre đặt nhãn chồng lên nhau. Bỏ nhãn của một
+  trong hai cạnh, rút ngắn chữ không giải quyết được.
 
 ## Ghi chú khi xuất ảnh dán vào .docx
 
