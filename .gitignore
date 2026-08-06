@@ -10,6 +10,13 @@ photos/
 *.env
 !deploy/*.service
 
+# --- Tài liệu báo cáo ---
+# Bản mẫu Samsung mang ghi chú bản quyền cấm sao chép lại, repo lại đang công khai.
+# Giữ máy cục bộ; chỉ đưa lên phần nội dung do nhóm tự viết (doc/*.md).
+doc/*.docx
+doc/*.xlsx
+doc/~$*
+
 # --- Môi trường Python ---
 venv/
 .venv/

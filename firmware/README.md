@@ -1,15 +1,16 @@
 # Firmware ESP32
 
-Mỗi phiên bản nằm trong **thư mục riêng**, tên file `.ino` trùng tên thư mục —
-đây là yêu cầu bắt buộc của Arduino IDE để mở được sketch. Trước đây hai file
-`.ino` nằm chung một thư mục nên IDE cố biên dịch cả hai và báo lỗi trùng hàm.
+Bản đang dùng: [`v2/v2.ino`](v2/v2.ino) — firmware v2.1, có `MIST_LOCK`/`MIST_UNLOCK`
+và watchdog serial. Tên file `.ino` trùng tên thư mục vì Arduino IDE bắt buộc
+như vậy mới mở được sketch.
 
-| Thư mục | Nạp? | Nội dung |
-|---|---|---|
-| [`v2/`](v2/v2.ino) | ✅ **Nạp bản này** | v2.1 — có `MIST_LOCK`/`MIST_UNLOCK` và watchdog serial |
-| [`v1/`](v1/v1.ino) | ❌ Không | Bản gốc, giữ lại để đối chiếu trong báo cáo |
+Bản v1 đã xoá khỏi repo. Cần đối chiếu thì lấy từ lịch sử git:
 
-## Nạp v2
+```bash
+git show e02db11:firmware/v1/v1.ino > /tmp/v1.ino
+```
+
+## Nạp firmware
 
 1. Arduino IDE → **Tools → Board** → cài package *esp32 by Espressif Systems*.
 2. **Sketch → Include Library → Manage Libraries**, cài:
@@ -22,17 +23,27 @@ Mỗi phiên bản nằm trong **thư mục riêng**, tên file `.ino` trùng t�
 > sudo systemctl stop smart-garden
 > ```
 
-## Khác biệt v1 → v2.1
+## Watchdog serial — vì sao cần `PING`
+
+Firmware ghi lại thời điểm nhận dòng cuối cùng từ Pi. Quá 60 giây không nhận được
+gì **và** chế độ thủ công hiện tại do Pi đặt ra, ESP32 tự nhả hai relay, quay về
+`AUTO` và bật cờ `wd_tripped`. Chế độ thủ công người dùng bấm trên web UI của
+chính ESP32 thì không bị đụng tới.
+
+Vì `send_command()` trong `main.py` lọc lệnh trùng, một quyết định giữ nguyên lâu
+(khoá ban đêm, khoá thối rễ, override tay) **không sinh byte nào** trên serial.
+Nếu không có gì bù, watchdog sẽ hiểu là Pi đã chết và huỷ đúng những trạng thái
+cần giữ nhất. Vì vậy `decision_loop` gửi `PING` mỗi 10 giây — lệnh này không đổi
+trạng thái gì, chỉ để phân biệt "quyết định đang ổn định" với "host đã chết".
+
+## Khác biệt so với v1
 
 | | v1 | v2.1 |
 |---|---|---|
 | `MIST_LOCK` / `MIST_UNLOCK` | ❌ | ✅ Khoá riêng phun sương, **vẫn giữ AUTO** cho tưới gốc |
-| Watchdog serial | ❌ | ✅ Pi im lặng > 60 giây → tự huỷ chế độ thủ công, quay về `AUTO` |
+| Watchdog serial | ❌ | ✅ |
 | Trường `mist_locked`, `wd_tripped` trong JSON | ❌ | ✅ |
 | `decideMode()` xử lý trường hợp khoá sương | ❌ | ✅ Khô + nóng mà bị khoá sương → tưới gốc thay vì phun sương |
-
-v1 vẫn chạy được với `main.py` (lệnh lạ bị bỏ qua an toàn), nhưng mất ma trận
-fusion đầy đủ và **mất luôn lớp an toàn watchdog**.
 
 ## Cấu hình WiFi
 

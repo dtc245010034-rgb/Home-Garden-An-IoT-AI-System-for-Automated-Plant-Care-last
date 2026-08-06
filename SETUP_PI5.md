@@ -41,8 +41,8 @@ Copy toàn bộ dự án vào `/home/pi/smart_garden` (đổi `pi` thành tên u
 │   ├── install.sh              ← script cài tự động
 │   └── smart-garden.service    ← file systemd
 ├── firmware/
-│   ├── v1/v1.ino               ← bản gốc, giữ để đối chiếu (KHÔNG nạp)
 │   └── v2/v2.ino               ← firmware ESP32 v2.1 (MIST_LOCK + watchdog)
+├── doc/                        ← báo cáo, sơ đồ, nhật ký đối chiếu
 ├── SETUP_PI5.md                ← file này
 ├── photos/                     ← tự tạo khi chạy
 └── smart_garden.db             ← tự tạo khi chạy
@@ -320,6 +320,16 @@ Ghi lại đây để bạn viết vào **mục 3.5 Testing and Improvements** c
 | 7 | AI chỉ tác động 1/4 trạng thái, còn lại chỉ ghi log | Ma trận quyết định AI × độ ẩm đất; ba ô thay đổi hành vi thật: tưới khẩn cấp có điều kiện, khoá tưới khi nghi thối rễ, cấm phun sương khi phát hiện nấm |
 | 8 | Chạy tay, log cho thấy 6 lần khởi động rải rác | systemd với `Restart=always`, `RestartSec=10`, tự chạy khi cắm điện |
 | 9 | Tên cổng đổi giữa `ttyUSB0`/`ttyUSB1` | udev rule tạo tên cố định `/dev/esp32` |
+
+Bốn khiếm khuyết tìm thêm ở lần rà soát ngày 06/08, khi đọc firmware và `main.py`
+đối chiếu với nhau thay vì đọc riêng từng bên:
+
+| # | Vấn đề | Cách sửa |
+|---|---|---|
+| 10 | `main.py` không gửi heartbeat mà watchdog firmware chờ. Do lệnh trùng bị lọc, quyết định giữ nguyên không sinh byte nào → **khoá ban đêm bị nhả sau ~60 giây**, có thể tưới trong tối | Gửi `PING` mỗi 10 giây trong `decision_loop` |
+| 11 | Khung sự kiện của ESP32 bị đọc như khung cảm biến, xoá sạch số liệu trên dashboard | Bỏ qua khung không có trường `temp`, ghi sang nhật ký sự kiện |
+| 12 | Thuộc tính `hidden` vô tác dụng với phần tử có khai báo `display` → 4 băng cảnh báo hiện thường trực | Thêm `[hidden]{display:none!important}` |
+| 13 | Ghi chú AI chèn vào trang không escape; giờ trên thumbnail lệch 1 ký tự | Escape khi chèn; sửa offset `slice` |
 
 ---
 

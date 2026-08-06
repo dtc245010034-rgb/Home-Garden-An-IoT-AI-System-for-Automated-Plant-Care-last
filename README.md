@@ -123,7 +123,7 @@ flowchart LR
 | Vi điều khiển | ESP32 DevKit V1 | — |
 | Nhiệt độ / ẩm không khí | DHT11 | GPIO 4 |
 | Ánh sáng | LDR + trở 10kΩ | GPIO 34 (ADC) |
-| Độ ẩm đất | Cảm biến điện dung | GPIO 35 (ADC) |
+| Độ ẩm đất | Cảm biến điện trở | GPIO 35 (ADC) |
 | Relay bơm gốc | Module relay 5V (active LOW) | GPIO 26 |
 | Relay phun sương | Module relay 5V (active LOW) | GPIO 27 |
 | Màn hình | OLED SSD1306 128×64 I²C | SDA 21 · SCL 22 |
@@ -408,16 +408,18 @@ Thêm truy vấn trong [`SETUP_PI5.md` mục 7](SETUP_PI5.md).
 
 ```
 .
-├── main.py                            # Chương trình chính trên Pi (~1100 dòng)
+├── main.py                            # Chương trình chính trên Pi (1098 dòng)
 ├── templates/
 │   └── dashboard.html                 # Dashboard SPA, không phụ thuộc framework
 ├── firmware/
-│   ├── README.md                      # Hướng dẫn nạp + khác biệt v1 → v2.1
-│   ├── v1/v1.ino                      # Bản gốc — giữ để đối chiếu, KHÔNG nạp
-│   └── v2/v2.ino                      # v2.1 — MIST_LOCK + watchdog serial
+│   ├── README.md                      # Hướng dẫn nạp + watchdog serial
+│   └── v2/v2.ino                      # Firmware v2.1 (432 dòng)
 ├── deploy/
 │   ├── install.sh                     # Cài tự động 8 bước
 │   └── smart-garden.service           # Unit systemd, Restart=always
+├── doc/
+│   ├── CHANGELOG-BAO-CAO.md           # Đối chiếu báo cáo với hệ thống
+│   └── smart_garden_diagrams_v2.md    # Nguồn 7 sơ đồ Mermaid cho báo cáo
 ├── requirements.txt
 ├── SETUP_PI5.md                       # Hướng dẫn triển khai + xử lý sự cố
 └── README.md
@@ -433,9 +435,8 @@ Thêm truy vấn trong [`SETUP_PI5.md` mục 7](SETUP_PI5.md).
 | `input_listener` | — | Nhận lệnh bàn phím (chỉ khi `stdin.isatty()`) |
 | `decision_loop` | **2 giây** | Thread chính: PING + đánh giá 5 mức ưu tiên |
 
-> Mỗi phiên bản firmware nằm trong thư mục riêng và tên file `.ino` trùng tên
-> thư mục — bắt buộc phải vậy thì Arduino IDE mới mở được sketch. Mở thẳng
-> `firmware/v2/v2.ino` là chạy được ngay, không phải copy đi đâu.
+> Tên file `.ino` trùng tên thư mục chứa nó vì Arduino IDE bắt buộc như vậy mới
+> mở được sketch. Mở thẳng `firmware/v2/v2.ino` là biên dịch được ngay.
 
 ---
 
@@ -487,7 +488,10 @@ Nêu thẳng ra thay vì để giám khảo phát hiện:
 | `wd_tripped` từ firmware bị bỏ qua hoàn toàn | Watchdog trip mà không ai biết | Thêm băng cảnh báo trên dashboard |
 | Sparkline bị `preserveAspectRatio="none"` kéo giãn | Nét vẽ dày/mỏng không đều | `vector-effect="non-scaling-stroke"` |
 | Tham chiếu `esp32_firmware_patch.md` — file không tồn tại | Người làm theo hướng dẫn đi tìm file không có | Trỏ về `firmware/v2/v2.ino` (đã chứa bản vá) |
-| Hai file `.ino` nằm chung một thư mục | Arduino IDE biên dịch cả hai → lỗi trùng hàm, không nạp được | Tách thành `firmware/v1/v1.ino` và `firmware/v2/v2.ino`, tên file trùng tên thư mục đúng chuẩn sketch |
+| Hai file `.ino` nằm chung một thư mục | Arduino IDE biên dịch cả hai → lỗi trùng hàm, không nạp được | Chuyển sang `firmware/v2/v2.ino` đúng chuẩn sketch; bản v1 đã bỏ, lấy lại từ lịch sử git nếu cần |
+
+Ngoài mã nguồn, bản v2.2 còn rà soát toàn bộ báo cáo cuối kỳ đối chiếu với code —
+22 điểm lệch, 49 phép sửa. Chi tiết trong [`doc/CHANGELOG-BAO-CAO.md`](doc/CHANGELOG-BAO-CAO.md).
 
 ### v2.1 — watchdog serial
 
