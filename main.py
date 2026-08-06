@@ -48,7 +48,7 @@ LỆNH GỬI XUỐNG ESP32
   Firmware CŨ chưa có MIST_LOCK sẽ bỏ qua lệnh lạ một cách an toàn
   (readSerialCommand không khớp chuỗi nào thì không làm gì), nên main.py này
   chạy được với cả firmware cũ lẫn mới. Muốn ma trận fusion hoạt động đầy đủ
-  thì nạp bản vá firmware kèm theo (esp32_firmware_patch.md).
+  (và có lớp an toàn watchdog) thì nạp firmware/v2/v2.ino.
 
 =============================================================================
 LƯU TRỮ

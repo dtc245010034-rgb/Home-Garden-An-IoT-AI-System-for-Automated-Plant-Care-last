@@ -40,7 +40,9 @@ Copy toàn bộ dự án vào `/home/pi/smart_garden` (đổi `pi` thành tên u
 ├── deploy/
 │   ├── install.sh              ← script cài tự động
 │   └── smart-garden.service    ← file systemd
-├── smart_garden_wifimanager_v2.ino  ← firmware ESP32 (đã có MIST_LOCK + watchdog)
+├── firmware/
+│   ├── v1/v1.ino               ← bản gốc, giữ để đối chiếu (KHÔNG nạp)
+│   └── v2/v2.ino               ← firmware ESP32 v2.1 (MIST_LOCK + watchdog)
 ├── SETUP_PI5.md                ← file này
 ├── photos/                     ← tự tạo khi chạy
 └── smart_garden.db             ← tự tạo khi chạy
@@ -324,7 +326,7 @@ Ghi lại đây để bạn viết vào **mục 3.5 Testing and Improvements** c
 ## 10. Việc còn lại trước buổi bảo vệ
 
 - [ ] Đặt lại camera và xác nhận nhãn **"ĐỦ TIN CẬY"** (mục 5) — quan trọng nhất
-- [ ] Nạp firmware `smart_garden_wifimanager_v2.ino` để `MIST_LOCK` và watchdog serial có tác dụng
+- [ ] Nạp firmware `firmware/v2/v2.ino` để `MIST_LOCK` và watchdog serial có tác dụng
 - [ ] Cho hệ thống chạy liên tục **3–5 ngày** để có dữ liệu thật cho biểu đồ báo cáo
 - [ ] Quay video 3 kịch bản kiểm thử: (a) tưới khẩn cấp, (b) Time Guard ban đêm, (c) cấm phun sương khi đốm nâu
 - [ ] Chụp ảnh màn hình dashboard ở trạng thái có dữ liệu đầy đủ để đưa vào mục 3.4

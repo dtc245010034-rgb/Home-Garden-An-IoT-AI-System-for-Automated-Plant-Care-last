@@ -124,7 +124,7 @@ $(c_g "════════════════════════�
   $(c_y "Bước tiếp theo bắt buộc:")
   1. Chĩa camera vào khay rau, bấm "Chụp & chẩn đoán ngay" trên dashboard
      và xác nhận nhãn "ĐỦ TIN CẬY" hiện lên (sửa Blocker 1).
-  2. Nạp firmware ESP32 (smart_garden_wifimanager_v2.ino) để lệnh MIST_LOCK
+  2. Nạp firmware ESP32 (firmware/v2/v2.ino) để lệnh MIST_LOCK
      và watchdog serial hoạt động — không nạp thì hệ thống vẫn chạy, chỉ mất
      tính năng cấm phun sương khi phát hiện đốm nâu.
 

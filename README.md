@@ -131,7 +131,7 @@ flowchart LR
 | Máy tính trung tâm | Raspberry Pi 5 (4/8GB) | — |
 | Camera | Webcam USB 720p+ | `/dev/video0` |
 
-**Ngưỡng trong firmware** (`smart_garden_wifimanager_v2.ino`):
+**Ngưỡng trong firmware** ([`firmware/v2/v2.ino`](firmware/v2/v2.ino)):
 
 ```c
 #define SOIL_DRY_PCT_THRESHOLD 40      // < 40% coi là đất khô
@@ -265,10 +265,12 @@ lớp thứ hai độc lập: `isDark && isDry → MODE_IDLE`.
 Arduino IDE → cài board **ESP32** và các thư viện:
 `WiFiManager`, `Adafruit GFX`, `Adafruit SSD1306`, `DHT sensor library`.
 
-Mở `smart_garden_wifimanager_v2.ino` → chọn board *ESP32 Dev Module* → Upload.
+Mở [`firmware/v2/v2.ino`](firmware/v2/v2.ino) → chọn board *ESP32 Dev Module* → Upload.
 
 > Nếu Pi đang chạy service, phải dừng trước khi nạp:
 > `sudo systemctl stop smart-garden` (nếu không sẽ báo *port busy*).
+
+Chi tiết và khác biệt v1 → v2.1: [`firmware/README.md`](firmware/README.md).
 
 ### 7.2 Cài trên Raspberry Pi 5
 
@@ -409,8 +411,10 @@ Thêm truy vấn trong [`SETUP_PI5.md` mục 7](SETUP_PI5.md).
 ├── main.py                            # Chương trình chính trên Pi (~1100 dòng)
 ├── templates/
 │   └── dashboard.html                 # Dashboard SPA, không phụ thuộc framework
-├── smart_garden_wifimanager_v2.ino    # Firmware ESP32 v2.1 (MIST_LOCK + watchdog)
-├── _smart_garden_wifimanager.ino      # Firmware v1 — giữ để đối chiếu, KHÔNG nạp
+├── firmware/
+│   ├── README.md                      # Hướng dẫn nạp + khác biệt v1 → v2.1
+│   ├── v1/v1.ino                      # Bản gốc — giữ để đối chiếu, KHÔNG nạp
+│   └── v2/v2.ino                      # v2.1 — MIST_LOCK + watchdog serial
 ├── deploy/
 │   ├── install.sh                     # Cài tự động 8 bước
 │   └── smart-garden.service           # Unit systemd, Restart=always
@@ -429,9 +433,9 @@ Thêm truy vấn trong [`SETUP_PI5.md` mục 7](SETUP_PI5.md).
 | `input_listener` | — | Nhận lệnh bàn phím (chỉ khi `stdin.isatty()`) |
 | `decision_loop` | **2 giây** | Thread chính: PING + đánh giá 5 mức ưu tiên |
 
-> ⚠️ Hai file `.ino` nằm cùng một thư mục — Arduino IDE sẽ cố biên dịch **cả
-> hai** và báo lỗi trùng hàm. Trước khi mở IDE, hãy copy riêng
-> `smart_garden_wifimanager_v2.ino` vào một thư mục cùng tên với nó.
+> Mỗi phiên bản firmware nằm trong thư mục riêng và tên file `.ino` trùng tên
+> thư mục — bắt buộc phải vậy thì Arduino IDE mới mở được sketch. Mở thẳng
+> `firmware/v2/v2.ino` là chạy được ngay, không phải copy đi đâu.
 
 ---
 
@@ -480,7 +484,8 @@ Nêu thẳng ra thay vì để giám khảo phát hiện:
 | Google Fonts tải chặn render | Pi trong LAN không Internet → dashboard **trắng trang** tới khi DNS timeout | `media="print" onload="this.media='all'"` |
 | `wd_tripped` từ firmware bị bỏ qua hoàn toàn | Watchdog trip mà không ai biết | Thêm băng cảnh báo trên dashboard |
 | Sparkline bị `preserveAspectRatio="none"` kéo giãn | Nét vẽ dày/mỏng không đều | `vector-effect="non-scaling-stroke"` |
-| Tham chiếu `esp32_firmware_patch.md` — file không tồn tại | Người làm theo hướng dẫn đi tìm file không có | Trỏ về `smart_garden_wifimanager_v2.ino` (đã chứa bản vá) |
+| Tham chiếu `esp32_firmware_patch.md` — file không tồn tại | Người làm theo hướng dẫn đi tìm file không có | Trỏ về `firmware/v2/v2.ino` (đã chứa bản vá) |
+| Hai file `.ino` nằm chung một thư mục | Arduino IDE biên dịch cả hai → lỗi trùng hàm, không nạp được | Tách thành `firmware/v1/v1.ino` và `firmware/v2/v2.ino`, tên file trùng tên thư mục đúng chuẩn sketch |
 
 ### v2.1 — watchdog serial
 
