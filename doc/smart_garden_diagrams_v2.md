@@ -40,11 +40,11 @@ Sơ đồ 2 nên đặt riêng một trang khổ ngang. Sơ đồ 7 rất rộng
 
 ```mermaid
 flowchart TB
-    subgraph CLOUD["☁️ Tầng đám mây"]
+    subgraph CLOUD["Tầng đám mây"]
         GEM["Gemini Vision API<br/><i>gemini-3.1-flash-lite</i><br/>Trả JSON: trang_thai · do_tin_cay · ghi_chu"]
     end
 
-    subgraph EDGE["🖥️ Tầng biên — Raspberry Pi 5 · main.py (Python đa luồng)"]
+    subgraph EDGE["Tầng biên — Raspberry Pi 5 · main.py (Python đa luồng)"]
         direction TB
         SR["<b>serial_reader</b> (thread)<br/>Đọc JSON 2s/lần<br/>Tự kết nối lại"]
         AI["<b>ai_vision_worker</b> (thread)<br/>OpenCV chụp mỗi 15 phút<br/>Lưu ảnh có dấu thời gian"]
@@ -55,7 +55,7 @@ flowchart TB
         PH[("photos/<br/>leaf_YYYYmmdd_HHMMSS.jpg<br/>giữ 50 file gần nhất")]
     end
 
-    subgraph MCU["🔌 Tầng thiết bị — ESP32 (điều khiển thời gian thực)"]
+    subgraph MCU["Tầng thiết bị — ESP32 (điều khiển thời gian thực)"]
         direction TB
         SEN["Cảm biến<br/>DHT11 · quang trở · độ ẩm đất"]
         AUTO["<b>Logic AUTO cục bộ</b><br/>Theo ngưỡng trong firmware<br/><i>Chạy độc lập với Pi</i>"]
@@ -64,8 +64,8 @@ flowchart TB
         WD["<b>checkSerialWatchdog()</b><br/>Quá 60s không nhận gì từ Pi<br/>→ nhả relay, quay về AUTO<br/><i>báo cờ wd_tripped</i>"]
     end
 
-    CAM["📷 USB Camera"]
-    WEB["🌐 Trình duyệt cùng LAN<br/>dashboard.html"]
+    CAM["USB Camera"]
+    WEB["Trình duyệt cùng LAN<br/>dashboard.html"]
 
     CAM -->|"cv2.VideoCapture"| AI
     AI <-->|"HTTPS · upload ảnh / JSON"| GEM
@@ -111,21 +111,21 @@ flowchart TD
     START(["decision_loop — mỗi 2 giây"]) --> L1{"<b>MỨC 1 — AI KHẨN CẤP</b><br/>trang_thai = heo_ru<br/>VÀ do_tin_cay ≥ 70%<br/>VÀ ngoài cooldown?"}
 
     L1 -->|Có| SOIL{"<b>Đối chiếu độ ẩm đất</b><br/>soil < 40% ?"}
-    SOIL -->|"Đất KHÔ"| E1["🚨 WATER_ON — xung 60 giây<br/>hết hạn tự trả AUTO<br/>Cooldown 3600s<br/>log: emergency_watering"]
-    SOIL -->|"Đất ĐỦ ẨM"| E2["🛑 LOCK_IDLE — giữ 900 giây<br/><b>NGHI THỐI RỄ — không tưới</b><br/>log: rootrot_hold"]
+    SOIL -->|"Đất KHÔ"| E1["WATER_ON — xung 60 giây<br/>hết hạn tự trả AUTO<br/>Cooldown 3600s<br/>log: emergency_watering"]
+    SOIL -->|"Đất ĐỦ ẨM"| E2["LOCK_IDLE — giữ 900 giây<br/><b>NGHI THỐI RỄ — không tưới</b><br/>log: rootrot_hold"]
 
     L1 -->|Không| L2{"<b>MỨC 2 — TIME GUARD</b><br/>Giờ hiện tại 19h–6h?"}
-    L2 -->|Có| N["🌙 LOCK_IDLE — khoá ban đêm<br/><i>lệnh tay KHÔNG ghi đè được</i>"]
+    L2 -->|Có| N["LOCK_IDLE — khoá ban đêm<br/><i>lệnh tay KHÔNG ghi đè được</i>"]
 
     L2 -->|Không| L3{"<b>MỨC 3 — MANUAL OVERRIDE</b><br/>now < manual_override_until?"}
-    L3 -->|Có| M["✋ Giữ nguyên lệnh tay<br/>Lease 600 giây rồi tự nhả<br/>Nguồn: Web / Terminal"]
+    L3 -->|Có| M["Giữ nguyên lệnh tay<br/>Lease 600 giây rồi tự nhả<br/>Nguồn: Web / Terminal"]
 
     L3 -->|Không| L4{"<b>MỨC 4 — MA TRẬN FUSION</b><br/>Có chẩn đoán hợp lệ<br/>(conf ≥ 40)?"}
-    L4 -->|"dom_nau"| F1["🍄 MIST_LOCK — cấm phun sương<br/>tưới gốc vẫn chạy theo ngưỡng<br/><b>ĐỔI HÀNH VI THẬT</b><br/>log: fungus_mist_lock"]
-    L4 -->|"vang_la"| F2["🌱 AUTO + cảnh báo thiếu đạm<br/><i>chỉ tư vấn — KHÔNG đổi actuator</i>"]
+    L4 -->|"dom_nau"| F1["MIST_LOCK — cấm phun sương<br/>tưới gốc vẫn chạy theo ngưỡng<br/><b>ĐỔI HÀNH VI THẬT</b><br/>log: fungus_mist_lock"]
+    L4 -->|"vang_la"| F2["AUTO + cảnh báo thiếu đạm<br/><i>chỉ tư vấn — KHÔNG đổi actuator</i>"]
     L4 -->|"binh_thuong / khong_xac_dinh<br/>hoặc không có chẩn đoán"| L5
 
-    L5["<b>MỨC 5 — MẶC ĐỊNH</b><br/>✅ AUTO<br/>ESP32 tự quyết theo ngưỡng cục bộ"]
+    L5["<b>MỨC 5 — MẶC ĐỊNH</b><br/>AUTO<br/>ESP32 tự quyết theo ngưỡng cục bộ"]
 
     E1 --> SEND
     E2 --> SEND
@@ -171,7 +171,7 @@ flowchart LR
     G --> PH[("photos/leaf_*.jpg<br/>giữ 50 file")]
     G --> H["Gemini Vision<br/>prompt ép trả JSON<br/>+ hỏi 'có cây trong ảnh không?'"]
     H --> V{"<b>normalize_ai_result()</b><br/>1· parse JSON được?<br/>2· trang_thai trong enum?<br/>3· do_tin_cay ≥ 40?<br/>4· có cây trong khung?"}
-    V -->|"Hỏng"| X["❌ Loại bỏ<br/>tăng bộ đếm thất bại<br/>→ camera_alert"]
+    V -->|"Hỏng"| X["Loại bỏ<br/>tăng bộ đếm thất bại<br/>→ camera_alert"]
     V -->|"Hợp lệ"| I["latest_ai_result"]
     I --> DB2[("SQLite · ai_diagnosis")]
     X --> DB2
@@ -219,11 +219,11 @@ sequenceDiagram
     AIW->>DB: lưu ảnh vào photos/
     AIW->>GEM: upload ảnh + prompt ép JSON
     GEM-->>VAL: {"trang_thai":"heo_ru","do_tin_cay":95,"co_cay":true}
-    VAL->>VAL: enum ✓ · conf 95 ≥ 40 ✓ · có cây ✓
+    VAL->>VAL: enum hợp lệ · conf 95 ≥ 40 · có cây trong khung
     VAL->>DB: ai_diagnosis
     VAL->>DL: latest_ai_result
 
-    DL->>DL: MỨC 1 — 95% ≥ 70% ✓ và ngoài cooldown ✓
+    DL->>DL: MỨC 1 — 95% ≥ 70% và ngoài cooldown
     DL->>DL: đối chiếu soil = 28% < 40% → ĐẤT KHÔ
     DL->>DB: events: emergency_watering
     DL->>ESP: WATER_ON
@@ -300,7 +300,7 @@ flowchart LR
     APP --> UDEV
     UDEV ---|"USB Serial · 115200 baud"| ESP
     USB --- APP
-    PC -->|"HTTP :5000<br/><b>⚠ chưa có xác thực</b>"| APP
+    PC -->|"HTTP :5000<br/><b>chưa có xác thực</b>"| APP
     PC -.->|"HTTP :80 (xem dự phòng)"| ESP
     APP -->|"HTTPS 443"| NET
     NET --> GEM
