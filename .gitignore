@@ -33,3 +33,7 @@ build/
 Thumbs.db
 .vscode/
 .idea/
+
+# Tệp trung gian khi dịch báo cáo
+doc/_*.json
+doc/_*.md
