@@ -1,0 +1,10 @@
+# Thư viện chỉ dùng để kiểm thử và dựng tài liệu, không cần trên Raspberry Pi.
+#   python -m pip install -r requirements-dev.txt
+#
+# Bộ test thay cv2, pyserial và google-genai bằng module giả, nên chạy được trên
+# máy không cài các thư viện phần cứng ở requirements.txt.
+
+pytest>=8.0
+
+# Chèn ảnh và dịch báo cáo .docx (doc/chen_anh.py, doc/dich_bao_cao.py)
+python-docx>=1.1

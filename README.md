@@ -318,6 +318,7 @@ thiết kế để vẫn hoạt động.
 | `/api/events?limit=60` | GET | Nhật ký sự kiện, `limit` từ 1 đến 500 |
 | `/api/diagnosis?limit=30` | GET | Lịch sử chẩn đoán AI |
 | `/api/stats` | GET | Số liệu tổng hợp cho phần Testing của báo cáo |
+| `/api/health` | GET | Kiểm tra sức khoẻ 5 mục: serial, AI, camera, CSDL, số lỗi 1 giờ qua. Trả 503 khi có mục hỏng |
 | `/api/export.csv?hours=24` | GET | Xuất CSV, `hours` từ 1 đến 720 |
 | `/api/command` | POST | `{"cmd":"WATER_ON"}`, mở lease thủ công 600 giây |
 | `/api/check_leaf` | POST | Chụp và chẩn đoán ngay. Trả 429 nếu còn cooldown 60 giây |
@@ -362,7 +363,10 @@ Truy vấn mẫu cho báo cáo nằm ở [`SETUP_PI5.md`](SETUP_PI5.md) mục 7.
 ├── doc/
 │   ├── CHANGELOG-BAO-CAO.md           Đối chiếu báo cáo cuối kỳ với hệ thống
 │   └── smart_garden_diagrams_v2.md    Nguồn 8 sơ đồ Mermaid cho báo cáo
+├── tests/                             45 bài pytest, không cần phần cứng
 ├── requirements.txt
+├── requirements-dev.txt
+├── KIEM-THU.md                        Cách kiểm thử, kịch bản diễn, lỗi ghi ở đâu
 ├── SETUP_PI5.md
 └── README.md
 ```
@@ -408,7 +412,7 @@ bao giờ nằm trong repo; `.gitignore` đã loại trừ `*.env`, `smart_garde
 | 4 | DHT11 sai số ±2°C và ±5% RH | Ngưỡng phun sương 33.0°C rất thô, độ ẩm không dùng để điều khiển được | Thay bằng DHT22 hoặc SHT31 |
 | 5 | Cảm biến độ ẩm đất loại điện trở | Điện cực ăn mòn sau vài tuần ngâm liên tục | Thay bằng loại điện dung. Phần mềm không cần sửa vì giá trị đã chuẩn hoá trên thiết bị |
 | 6 | Ngưỡng đất khô khai báo ở hai nơi | Sửa một chỗ mà quên chỗ kia gây tranh chấp điều khiển | Xem cảnh báo ở mục 3 |
-| 7 | Chưa có unit test | Phải kiểm thử bằng tay theo kịch bản | Cần test cho `normalize_ai_result()`, `pulse()` và ma trận `decide_fusion()` |
+| 7 | Firmware ESP32 chưa có test tự động | Watchdog và `decideMode()` chỉ kiểm bằng tay | Bộ test hiện chỉ phủ phía Raspberry Pi. Xem [`KIEM-THU.md`](KIEM-THU.md) mục 6 |
 | 8 | Chưa đo độ chính xác mô hình trên tập có nhãn | Ngưỡng 40 và 70 là suy luận, chưa phải hiệu chỉnh | Gán nhãn một tập ảnh và hiệu chỉnh lại hai ngưỡng theo tỷ lệ lỗi |
 | 9 | Một camera cho một khay | Không mở rộng được cho nhiều khay | Hỗ trợ nhiều nguồn ảnh với trạng thái riêng từng khay |
 

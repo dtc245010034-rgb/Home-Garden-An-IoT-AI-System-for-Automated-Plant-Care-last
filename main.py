@@ -69,6 +69,7 @@ import socket
 import sqlite3
 import logging
 import threading
+import traceback
 from collections import deque
 from datetime import datetime
 
@@ -122,11 +123,13 @@ PING_INTERVAL = 10
 HISTORY_SAMPLE_INTERVAL = 15   # giây giữa 2 điểm trong RAM (biểu đồ realtime)
 HISTORY_MAXLEN = 240           # 240 x 15s ≈ 60 phút trong RAM
 DB_SENSOR_INTERVAL = 60        # giây giữa 2 lần ghi cảm biến xuống SQLite
-DB_PATH = os.path.join(BASE_DIR, 'smart_garden.db')
-PHOTO_DIR = os.path.join(BASE_DIR, 'photos')
+# SG_DATA_DIR cho phép bộ kiểm thử trỏ dữ liệu vào thư mục tạm, không đụng dữ liệu thật.
+DATA_DIR = os.environ.get('SG_DATA_DIR', BASE_DIR)
+DB_PATH = os.path.join(DATA_DIR, 'smart_garden.db')
+PHOTO_DIR = os.path.join(DATA_DIR, 'photos')
 PHOTO_KEEP = 50
 LATEST_IMG = os.path.join(PHOTO_DIR, 'latest.jpg')
-EVENTS_LOG_PATH = os.path.join(BASE_DIR, 'smart_garden_events.log')
+EVENTS_LOG_PATH = os.path.join(DATA_DIR, 'smart_garden_events.log')
 
 # --- Time Guard ---
 NIGHT_START_HOUR = 19
@@ -135,6 +138,13 @@ NIGHT_END_HOUR = 6
 # --- Dashboard ---
 DASHBOARD_HOST = '0.0.0.0'
 DASHBOARD_PORT = int(os.environ.get('SG_PORT', '5000'))
+
+# --- Chế độ kiểm thử ---
+# Chỉ bật khi SG_TEST_MODE=1. Cho phép dựng lại mọi ô của ma trận fusion mà không
+# phải chờ cây thật héo, và quay video minh hoạ theo kịch bản.
+# KHÔNG bật trên hệ đang chạy thật: nó cho phép ép trạng thái AI qua HTTP.
+TEST_MODE = os.environ.get('SG_TEST_MODE') == '1'
+test_force_night = None        # None = dùng giờ thật, True/False = ép
 
 VALID_COMMANDS = {"WATER_ON", "WATER_OFF", "MIST_ON", "MIST_OFF",
                   "AUTO", "LOCK_IDLE", "MIST_LOCK", "MIST_UNLOCK"}
@@ -177,13 +187,19 @@ last_ping_time = 0.0
 # name -> {"until": epoch hết hiệu lực, "cool": epoch hết cooldown}
 pulse_state = {}
 
-# ==================== KIỂM TRA API KEY TRƯỚC ====================
-if "GEMINI_API_KEY" not in os.environ:
-    print("Thiếu biến môi trường GEMINI_API_KEY. "
-          "Hãy export GEMINI_API_KEY=... (hoặc dùng EnvironmentFile với systemd) trước khi chạy.")
-    sys.exit(1)
+# ==================== KIỂM TRA API KEY ====================
+# Kiểm tra lúc chạy chứ không phải lúc import, để bộ kiểm thử nạp được module này
+# mà không cần API key và không thoát chương trình.
+client = None
 
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+def require_api_key():
+    global client
+    if "GEMINI_API_KEY" not in os.environ:
+        print("Thiếu biến môi trường GEMINI_API_KEY. "
+              "Hãy export GEMINI_API_KEY=... (hoặc dùng EnvironmentFile với systemd) trước khi chạy.")
+        sys.exit(1)
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 
 # ========================= LỚP LƯU TRỮ SQLITE =========================
@@ -245,13 +261,27 @@ def db_init():
         _db.commit()
 
 
+def _ghi_json_lines(entry):
+    """Ghi một dòng vào smart_garden_events.log. Đây là đường ghi log duy nhất
+    không phụ thuộc SQLite, nên vẫn còn dấu vết khi chính CSDL là thứ hỏng."""
+    try:
+        with events_log_lock:
+            with open(EVENTS_LOG_PATH, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+    except Exception as e:
+        print(f"{C_RED}⚠️  Không ghi được event log: {e}{C_RESET}")
+
+
 def db_exec(sql, params=()):
     try:
         with db_lock:
             _db.execute(sql, params)
             _db.commit()
     except Exception as e:
+        # Khong goi log_event() o day: no cung ghi SQLite, se de quy khi CSDL hong.
         print(f"{C_RED}⚠️  Lỗi ghi SQLite: {e}{C_RESET}")
+        _ghi_json_lines({"ts": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                         "event": "error", "where": "db_exec", "message": str(e)})
 
 
 def db_query(sql, params=()):
@@ -261,6 +291,13 @@ def db_query(sql, params=()):
     except Exception as e:
         print(f"{C_RED}⚠️  Lỗi đọc SQLite: {e}{C_RESET}")
         return []
+
+
+def log_error(where, exc):
+    """Ghi lỗi kèm traceback. Chỉ có str(e) thì gỡ lỗi trên Pi rất khổ."""
+    print(f"{C_RED}⚠️  [{where}] {exc}{C_RESET}")
+    log_event("error", {"where": where, "message": str(exc),
+                        "traceback": traceback.format_exc()[-1500:]})
 
 
 def log_event(event_type, data=None):
@@ -273,12 +310,7 @@ def log_event(event_type, data=None):
     entry = {"ts": ts, "event": event_type}
     if data:
         entry.update(data)
-    try:
-        with events_log_lock:
-            with open(EVENTS_LOG_PATH, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-    except Exception as e:
-        print(f"{C_RED}⚠️  Không ghi được event log: {e}{C_RESET}")
+    _ghi_json_lines(entry)
 
 
 def db_restore_history():
@@ -344,6 +376,9 @@ class SerialManager:
 
 # ========================= TIME GUARD =========================
 def is_nighttime():
+    # Chế độ kiểm thử có thể ép giá trị này để diễn kịch bản Time Guard giữa ban ngày.
+    if TEST_MODE and test_force_night is not None:
+        return test_force_night
     h = datetime.now().hour
     return h >= NIGHT_START_HOUR or h < NIGHT_END_HOUR
 
@@ -539,8 +574,7 @@ def ai_vision_worker():
             _, msg = run_diagnosis("auto_cycle")
             print(f"{C_CYAN}{C_BOLD} 🤖 [KẾT QUẢ AI] {msg} {C_RESET}")
         except Exception as e:
-            print(f"{C_RED}⚠️  [AI] Lỗi chẩn đoán: {e}{C_RESET}")
-            log_event("error", {"where": "ai_vision_worker", "message": str(e)})
+            log_error("ai_vision_worker", e)
         time.sleep(AI_CHECK_INTERVAL)
 
 
@@ -561,8 +595,7 @@ def trigger_leaf_check(source="Terminal"):
         print(f"{C_CYAN}{C_BOLD} 🤖 [CHECK_LEAF] {msg} {C_RESET}")
         return True, msg
     except Exception as e:
-        print(f"{C_RED}⚠️  [CHECK_LEAF] Lỗi chẩn đoán: {e}{C_RESET}")
-        log_event("error", {"where": f"check_leaf:{source}", "message": str(e)})
+        log_error(f"check_leaf:{source}", e)
         return False, f"Lỗi chẩn đoán: {e}"
 
 
@@ -736,31 +769,37 @@ def apply_manual_command(sm, cmd, source="Web Dashboard"):
 
 
 # ==================== VÒNG LẶP QUYẾT ĐỊNH ====================
-def decision_loop(sm):
+def decision_tick(sm):
+    """Đúng một lượt của thang năm mức. Tách riêng để bộ kiểm thử gọi được
+    chính hàm này thay vì chép lại logic — test chép lại thì phá code thật
+    test vẫn xanh, đó là niềm tin giả."""
     global last_ping_time
+    now = time.time()
+    if now - last_ping_time >= PING_INTERVAL:
+        last_ping_time = now
+        sm.write(b"PING\n")   # nuôi watchdog firmware v2.1, không đổi trạng thái
+
+    emergency = check_ai_emergency()
+    if emergency:
+        send_plan(sm, *emergency)
+    elif is_nighttime():
+        send_command(sm, 'LOCK_IDLE',
+                     f"🌙 Time Guard: khung giờ bảo vệ ban đêm ({NIGHT_START_HOUR}h-{NIGHT_END_HOUR}h)",
+                     "2-TIME GUARD")
+    else:
+        with state_lock:
+            override_active = time.time() < manual_override_until
+        if not override_active:
+            send_plan(sm, *decide_fusion())
+        # else: đang override thủ công hợp lệ -> giữ nguyên
+
+
+def decision_loop(sm):
     while True:
         try:
-            now = time.time()
-            if now - last_ping_time >= PING_INTERVAL:
-                last_ping_time = now
-                sm.write(b"PING\n")   # nuôi watchdog firmware v2.1, không đổi trạng thái
-
-            emergency = check_ai_emergency()
-            if emergency:
-                send_plan(sm, *emergency)
-            elif is_nighttime():
-                send_command(sm, 'LOCK_IDLE',
-                             f"🌙 Time Guard: khung giờ bảo vệ ban đêm ({NIGHT_START_HOUR}h-{NIGHT_END_HOUR}h)",
-                             "2-TIME GUARD")
-            else:
-                with state_lock:
-                    override_active = time.time() < manual_override_until
-                if not override_active:
-                    send_plan(sm, *decide_fusion())
-                # else: đang override thủ công hợp lệ -> giữ nguyên
+            decision_tick(sm)
         except Exception as e:
-            print(f"{C_RED}⚠️  Lỗi decision_loop: {e}{C_RESET}")
-            log_event("error", {"where": "decision_loop", "message": str(e)})
+            log_error("decision_loop", e)
         time.sleep(DECISION_LOOP_INTERVAL)
 
 
@@ -798,53 +837,67 @@ def print_sensor_status(sensor):
 
 
 def serial_reader(sm):
-    global latest_sensor, last_sensor_time, last_history_sample_time, last_db_sensor_time
+    """Vòng lặp đọc telemetry.
+
+    Toàn bộ thân vòng lặp nằm trong try/except: trước đây một ngoại lệ bất ngờ ở
+    đây làm chết luồng mà không ai biết, hệ thống chạy tiếp với số liệu đóng băng
+    và chỉ lộ ra qua đồng hồ 'tuổi số liệu' trên dashboard.
+    """
     while True:
-        raw = sm.readline()
-        line = raw.decode('utf-8', errors='ignore').strip()
-        if not line or not line.startswith('{'):
-            continue
         try:
-            sensor = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+            _doc_mot_dong(sm)
+        except Exception as e:
+            log_error("serial_reader", e)
+            time.sleep(1)
 
-        # ESP32 còn gửi gói sự kiện, ví dụ {"event":"watchdog","detail":"..."}.
-        # Nếu nhận nhầm là gói cảm biến thì latest_sensor bị ghi đè và toàn bộ
-        # số liệu nhiệt/ẩm/đất biến thành rỗng trên dashboard.
-        if 'temp' not in sensor:
-            if sensor.get('event'):
-                print(f"{C_YELLOW}⚠️  [ESP32] {sensor.get('event')}: {sensor.get('detail', '')}{C_RESET}")
-                log_event("esp32_event", {"event": sensor.get('event'),
-                                          "detail": sensor.get('detail')})
-            continue
 
-        now = time.time()
-        do_db = False
-        with state_lock:
-            latest_sensor = sensor
-            last_sensor_time = now
-            if now - last_history_sample_time >= HISTORY_SAMPLE_INTERVAL:
-                last_history_sample_time = now
-                sensor_history.append({
-                    "t": time.strftime('%H:%M:%S'),
-                    "temp": sensor.get('temp'), "humi": sensor.get('humi'),
-                    "soil": sensor.get('soil'), "light": sensor.get('light'),
-                })
-            if now - last_db_sensor_time >= DB_SENSOR_INTERVAL:
-                last_db_sensor_time = now
-                do_db = True
+def _doc_mot_dong(sm):
+    global latest_sensor, last_sensor_time, last_history_sample_time, last_db_sensor_time
+    raw = sm.readline()
+    line = raw.decode('utf-8', errors='ignore').strip()
+    if not line or not line.startswith('{'):
+        return
+    try:
+        sensor = json.loads(line)
+    except json.JSONDecodeError:
+        return
 
-        if do_db:
-            db_exec(
-                "INSERT INTO sensor_readings(ts,epoch,temp,humi,soil,light,water,mist,mode) "
-                "VALUES(?,?,?,?,?,?,?,?,?)",
-                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), now,
-                 sensor.get('temp'), sensor.get('humi'), sensor.get('soil'), sensor.get('light'),
-                 1 if str(sensor.get('water')).lower() == 'true' else 0,
-                 1 if str(sensor.get('mist')).lower() == 'true' else 0,
-                 sensor.get('mode')))
-        print_sensor_status(sensor)
+    # ESP32 còn gửi gói sự kiện, ví dụ {"event":"watchdog","detail":"..."}.
+    # Nếu nhận nhầm là gói cảm biến thì latest_sensor bị ghi đè và toàn bộ
+    # số liệu nhiệt/ẩm/đất biến thành rỗng trên dashboard.
+    if 'temp' not in sensor:
+        if sensor.get('event'):
+            print(f"{C_YELLOW}⚠️  [ESP32] {sensor.get('event')}: {sensor.get('detail', '')}{C_RESET}")
+            log_event("esp32_event", {"event": sensor.get('event'),
+                                      "detail": sensor.get('detail')})
+        return
+
+    now = time.time()
+    do_db = False
+    with state_lock:
+        latest_sensor = sensor
+        last_sensor_time = now
+        if now - last_history_sample_time >= HISTORY_SAMPLE_INTERVAL:
+            last_history_sample_time = now
+            sensor_history.append({
+                "t": time.strftime('%H:%M:%S'),
+                "temp": sensor.get('temp'), "humi": sensor.get('humi'),
+                "soil": sensor.get('soil'), "light": sensor.get('light'),
+            })
+        if now - last_db_sensor_time >= DB_SENSOR_INTERVAL:
+            last_db_sensor_time = now
+            do_db = True
+
+    if do_db:
+        db_exec(
+            "INSERT INTO sensor_readings(ts,epoch,temp,humi,soil,light,water,mist,mode) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), now,
+             sensor.get('temp'), sensor.get('humi'), sensor.get('soil'), sensor.get('light'),
+             1 if str(sensor.get('water')).lower() == 'true' else 0,
+             1 if str(sensor.get('mist')).lower() == 'true' else 0,
+             sensor.get('mode')))
+    print_sensor_status(sensor)
 
 
 # ==================== LỆNH THỦ CÔNG (TERMINAL) ====================
@@ -1027,6 +1080,99 @@ def api_stats():
     })
 
 
+@app.route('/api/health')
+def api_health():
+    """Một lời gọi trả lời câu hỏi 'hệ thống có đang chạy trơn tru không'.
+
+    Mỗi mục có trạng thái ok / warn / bad kèm lý do, để giám sát bằng máy được
+    chứ không phải nhìn dashboard bằng mắt."""
+    now = time.time()
+    with state_lock:
+        age = now - last_sensor_time if last_sensor_time else None
+        ai = dict(latest_ai_result) if latest_ai_result else None
+        alert, streak = camera_alert, camera_blind_streak
+    muc = {}
+
+    if age is None:
+        muc["serial"] = ("bad", "chưa nhận được khung telemetry nào từ ESP32")
+    elif age <= 10:
+        muc["serial"] = ("ok", f"khung gần nhất {age:.1f}s trước")
+    elif age <= 30:
+        muc["serial"] = ("warn", f"chậm, khung gần nhất {age:.1f}s trước")
+    else:
+        muc["serial"] = ("bad", f"mất liên lạc, khung gần nhất {age:.1f}s trước")
+
+    if ai is None:
+        muc["ai"] = ("warn", "chưa có chẩn đoán nào")
+    elif ai.get("trusted"):
+        muc["ai"] = ("ok", f"{ai['trang_thai']} {ai['do_tin_cay']}%")
+    else:
+        muc["ai"] = ("warn", f"chẩn đoán gần nhất không đáng tin ({ai['do_tin_cay']}%)")
+
+    muc["camera"] = ("bad", alert) if alert else ("ok", f"chuỗi thất bại {streak}")
+
+    try:
+        n = db_query("SELECT COUNT(*) c FROM sensor_readings")[0]["c"]
+        muc["csdl"] = ("ok", f"{n} bản ghi cảm biến")
+    except Exception as e:
+        muc["csdl"] = ("bad", f"không truy vấn được: {e}")
+
+    loi = db_query("SELECT COUNT(*) c FROM events WHERE event='error' AND epoch >= ?",
+                   (now - 3600,))
+    n_loi = loi[0]["c"] if loi else 0
+    muc["loi_1h"] = (("ok", "không có lỗi trong 1 giờ qua") if n_loi == 0
+                     else ("warn", f"{n_loi} lỗi trong 1 giờ qua"))
+
+    xau = [k for k, v in muc.items() if v[0] == "bad"]
+    canh = [k for k, v in muc.items() if v[0] == "warn"]
+    tong = "bad" if xau else ("warn" if canh else "ok")
+    return jsonify({
+        "trang_thai": tong,
+        "chi_tiet": {k: {"muc": v[0], "ly_do": v[1]} for k, v in muc.items()},
+        "server_time": time.strftime('%H:%M:%S'),
+    }), (200 if tong != "bad" else 503)
+
+
+@app.route('/api/test/ai', methods=['POST'])
+def api_test_ai():
+    if not TEST_MODE:
+        return jsonify({"ok": False, "message": "Chế độ kiểm thử đang tắt"}), 403
+    d = request.get_json(silent=True) or {}
+    raw = {"trang_thai": d.get("trang_thai", ""),
+           "do_tin_cay": d.get("do_tin_cay", 0),
+           "ghi_chu": d.get("ghi_chu", "tiêm từ chế độ kiểm thử")}
+    with state_lock:
+        soil = latest_sensor.get('soil')
+    result = normalize_ai_result(raw, soil)
+    record_ai_result(result, "test_inject", None)
+    log_event("test_inject", {"loai": "ai", "raw": raw})
+    return jsonify({"ok": True, "ket_qua": result})
+
+
+@app.route('/api/test/night', methods=['POST'])
+def api_test_night():
+    if not TEST_MODE:
+        return jsonify({"ok": False, "message": "Chế độ kiểm thử đang tắt"}), 403
+    global test_force_night
+    v = (request.get_json(silent=True) or {}).get("bat")
+    test_force_night = None if v is None else bool(v)
+    log_event("test_inject", {"loai": "night", "gia_tri": test_force_night})
+    return jsonify({"ok": True, "ep_ban_dem": test_force_night})
+
+
+@app.route('/api/test/reset', methods=['POST'])
+def api_test_reset():
+    if not TEST_MODE:
+        return jsonify({"ok": False, "message": "Chế độ kiểm thử đang tắt"}), 403
+    global test_force_night, latest_ai_result
+    with state_lock:
+        latest_ai_result = None
+    test_force_night = None
+    pulse_state.clear()
+    log_event("test_inject", {"loai": "reset"})
+    return jsonify({"ok": True, "message": "Đã xoá chẩn đoán tiêm, bộ đếm xung và ép giờ"})
+
+
 @app.route('/api/command', methods=['POST'])
 def api_command():
     data = request.get_json(silent=True) or {}
@@ -1060,6 +1206,7 @@ def dashboard_worker(sm):
 
 # ============================== MAIN ==============================
 def main():
+    require_api_key()
     os.makedirs(PHOTO_DIR, exist_ok=True)
     db_init()
     db_restore_history()
