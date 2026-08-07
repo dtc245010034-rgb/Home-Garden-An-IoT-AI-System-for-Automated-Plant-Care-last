@@ -352,20 +352,16 @@ Truy vấn mẫu cho báo cáo nằm ở [`SETUP_PI5.md`](SETUP_PI5.md) mục 7.
 
 ```
 .
-├── main.py                            1098 dòng, chương trình chính trên Pi
-├── templates/dashboard.html           725 dòng, trang đơn không phụ thuộc framework
+├── main.py                            
+├── templates/dashboard.html           
 ├── firmware/
-│   ├── README.md                      Hướng dẫn nạp, giải thích watchdog
+│   ├── README.md                      Hướng dẫn nạp
 │   └── v2/v2.ino                      433 dòng, firmware v2.1
 ├── deploy/
 │   ├── install.sh                     Script cài tự động
 │   └── smart-garden.service           Unit systemd, Restart=always
-├── doc/
-│   ├── CHANGELOG-BAO-CAO.md           Đối chiếu báo cáo cuối kỳ với hệ thống
-│   └── smart_garden_diagrams_v2.md    Nguồn 8 sơ đồ Mermaid cho báo cáo
 ├── tests/                             45 bài pytest, không cần phần cứng
 ├── requirements.txt
-├── requirements-dev.txt
 ├── KIEM-THU.md                        Cách kiểm thử, kịch bản diễn, lỗi ghi ở đâu
 ├── SETUP_PI5.md
 └── README.md
@@ -434,8 +430,6 @@ Bốn khiếm khuyết tìm được khi đọc firmware và `main.py` đối ch
 | Sparkline bị `preserveAspectRatio="none"` kéo giãn | Nét vẽ dày mỏng không đều | `vector-effect="non-scaling-stroke"` |
 | Hai file `.ino` nằm chung một thư mục | Arduino IDE biên dịch cả hai và báo lỗi trùng hàm | Chuyển sang `firmware/v2/v2.ino` đúng chuẩn sketch |
 
-Ngoài mã nguồn, bản này còn rà soát toàn bộ báo cáo cuối kỳ đối chiếu với code: 22
-điểm lệch, 49 phép sửa. Chi tiết ở [`doc/CHANGELOG-BAO-CAO.md`](doc/CHANGELOG-BAO-CAO.md).
 
 ### v2.1
 
